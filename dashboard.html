@@ -1,0 +1,1481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payroad Dashboard</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23161616'/%3E%3Cg transform='translate(11 20)'%3E%3Cpolygon points='21.1,0 29.9,0 16,23.5 0,23.5' fill='%23F6F6F4'/%3E%3Cpolygon points='34.7,0 43.5,0 37.1,23.5 21.4,23.5' fill='%23F6F6F4'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Mock-up of the shop dashboard for Payroad. No backend: all data is sample data held in memory.
+   The flow: no signed work order, no work, no payment.
+   1 the shop creates a work order -> 2 the driver signs it (link by text/email, or on the shop's device)
+   -> 3 the shop invoices it from its rate card -> 4 the money code is charged (driver pays from the link,
+   or the shop enters the express code at the counter) -> 5 close the day before midnight, deposit at 6:00 am.
+   What the driver gets lives in separate pages: inbox.html (their texts/emails), sign.html, pay.html.
+   Data and flow logic are shared through payroad-mock.js. Same tokens as login.html. */
+:root{
+  --bg:#F6F6F4; --card:#FFFFFF; --card-2:#EFEFEB; --ink:#161616; --muted:#5A5A57; --line:#D9D9D4;
+  --accent:#2A55D6; --on-accent:#FFFFFF; --accent-soft:#E6ECFB;
+  --ok:#1E7A4C; --ok-bg:#E3F2EA; --warn:#8A5A00; --warn-bg:#FBF1DC; --err:#A4271C; --err-bg:#FBE9E7;
+  --bar:#2A55D6; --bar-hi:#16348F; --grid:#E6E6E1;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121212; --card:#1C1C1C; --card-2:#262626; --ink:#EDEDEA; --muted:#A3A3A0; --line:#333;
+    --accent:#8EA8FF; --on-accent:#101830; --accent-soft:#1E2640;
+    --ok:#7FD3A4; --ok-bg:#16291F; --warn:#F2C46B; --warn-bg:#2E2512; --err:#FF9C92; --err-bg:#3A1E1B;
+    --bar:#7F9CFF; --bar-hi:#B9C9FF; --grid:#2A2A2A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121212; --card:#1C1C1C; --card-2:#262626; --ink:#EDEDEA; --muted:#A3A3A0; --line:#333;
+  --accent:#8EA8FF; --on-accent:#101830; --accent-soft:#1E2640;
+  --ok:#7FD3A4; --ok-bg:#16291F; --warn:#F2C46B; --warn-bg:#2E2512; --err:#FF9C92; --err-bg:#3A1E1B;
+  --bar:#7F9CFF; --bar-hi:#B9C9FF; --grid:#2A2A2A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+[hidden]{display:none !important}
+.num{font-variant-numeric:tabular-nums}
+.code{font:500 13.5px/1.2 ui-monospace,"Cascadia Mono",Consolas,monospace}
+.fill{display:inline;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:6px;padding:0 6px;font-size:.92em;overflow-wrap:anywhere}
+.muted{color:var(--muted)}
+
+/* shell */
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px}
+.logo{display:flex;align-items:center;gap:10px;padding:2px 8px 18px;font-weight:800;font-size:23px;letter-spacing:-.035em}
+.logo svg{fill:var(--ink);flex:none}
+.shop{padding:0 8px 14px;margin-bottom:10px;border-bottom:1px solid var(--line);line-height:1.3}
+.shop b{display:block;font-weight:600}
+.shop span{font-size:13px;color:var(--muted)}
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 10px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:500}
+.nav a:hover{background:var(--card-2);color:var(--ink)}
+.nav a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600;box-shadow:inset 3px 0 0 var(--accent)}
+.nav svg{width:20px;height:20px;flex:0 0 20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nbadge{margin-left:auto;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.side-foot{margin-top:auto;padding:14px 8px 0;border-top:1px solid var(--line);display:grid;gap:6px}
+.me{display:flex;align-items:center;gap:10px;font-size:14px;line-height:1.25}
+.me small{color:var(--muted)}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--card-2);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:0 0 34px}
+.side-foot a,.linkbtn{color:var(--muted);font-size:14px;text-decoration:none;min-height:36px;display:inline-flex;align-items:center;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.side-foot a:hover,.linkbtn:hover{color:var(--ink);text-decoration:underline}
+.previewtag{font-size:12px;font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:4px 8px}
+
+.mobilebar{display:none}
+.scrim{display:none}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:fixed;inset:0 auto 0 0;width:min(84vw,290px);z-index:30;transform:translateX(-100%);transition:transform .2s ease}
+  .app.open .side{transform:none}
+  .app.open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:25}
+  .mobilebar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:10}
+  .mobilebar .logo{padding:0;font-size:20px}
+  .mobilebar .btn{margin-left:auto}
+  .bar .acts .btn{display:none}
+}
+.main{min-width:0;padding:18px 28px 56px;max-width:1240px}
+@media (max-width:600px){.main{padding:14px 16px 48px}}
+
+/* buttons */
+.btn{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:inherit;white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--card-2)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.1)}
+.btn.danger{color:var(--err)}
+.btn.sm{min-height:36px;padding:0 12px;font-size:14px;border-radius:8px}
+.btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn{width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 44px}
+.iconbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.xbtn{width:36px;height:36px;border:0;background:transparent;border-radius:8px;cursor:pointer;font-size:20px;line-height:1;color:var(--muted)}
+.xbtn:hover{background:var(--card-2);color:var(--ink)}
+
+/* top status bar */
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.daystate{display:flex;align-items:center;gap:10px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px;background:var(--ok)}
+.daystate.closed .dot{background:var(--muted)}
+.bar .msg{flex:1 1 260px;min-width:0;color:var(--muted);margin:0}
+.bar .msg b{color:var(--ink);font-weight:600}
+.bar .acts{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;align-items:center}
+.proto{display:inline-flex;align-items:center;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:2px 10px}
+
+.vhead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px;margin:24px 0 16px}
+.vhead h1{margin:0;font-size:clamp(26px,3.4vw,34px);font-weight:800;letter-spacing:-.025em;line-height:1.1}
+.vhead p{margin:6px 0 0;color:var(--muted);max-width:70ch}
+
+/* layout */
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s6{grid-column:span 6}.s4{grid-column:span 4}
+@media (max-width:1060px){.s8,.s6,.s4{grid-column:span 12}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.panel h2{margin:0 0 14px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel h2 a,.panel h2 small{font-size:14px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--accent);text-decoration:none}
+.panel h2 small{color:var(--muted);font-weight:500}
+.panel h2 a:hover{text-decoration:underline}
+.empty{margin:0;color:var(--muted);padding:8px 0}
+
+/* flow strip (Today) */
+.flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+@media (max-width:760px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.flow li a{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:inherit;background:var(--card);height:100%}
+.flow li a:hover{border-color:var(--accent)}
+.flow small{display:block;font-size:12.5px;color:var(--muted);font-weight:600}
+.flow b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.flow span{font-size:13px;color:var(--muted)}
+.flow li.hot a{border-color:var(--warn);background:var(--warn-bg)}
+
+/* today's batch */
+.batch-top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.big{font-size:clamp(34px,5vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1}
+.big-sub{margin-top:6px;color:var(--muted)}
+.big-sub b{color:var(--ink)}
+.count{font-size:15px;color:var(--muted);text-align:right}
+.count b{display:block;color:var(--ink);font-size:22px;font-weight:700}
+@media (max-width:640px){.count{text-align:left}}
+.track{list-style:none;margin:20px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:640px){.track{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.track li{border-top:4px solid var(--line);padding-top:10px;font-size:14px;color:var(--muted);line-height:1.35}
+.track li b{display:block;color:var(--ink);font-weight:600;font-size:14.5px}
+.track li.done{border-top-color:var(--accent)}
+.track li.now{border-top-color:var(--accent);border-top-style:dashed}
+.batch-foot{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.batch-foot p{margin:0;flex:1 1 260px;color:var(--muted)}
+.batch-foot p b{color:var(--ink)}
+
+/* needs action */
+.todo{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.todo li{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.todo li div{min-width:0;flex:1 1 auto}
+.todo li .btn{flex:none}
+.todo b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.todo small{display:block;color:var(--muted);font-size:13px}
+.todo li.f{border-color:var(--err)}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.stat-l{font-size:13px;color:var(--muted)}
+.stat-n{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-s{font-size:13px;color:var(--muted)}
+
+/* tables */
+.tablewrap{overflow-x:auto;margin:0 -4px}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th{text-align:left;font-size:12.5px;font-weight:600;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--card-2)}
+td .sub{display:block;font-size:13px;color:var(--muted)}
+tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:0}
+.rowbtn{all:unset;cursor:pointer;font-weight:600}
+.rowbtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (max-width:640px){
+  table.stack thead{display:none}
+  table.stack tr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  table.stack td{border:0;padding:0}
+  table.stack td.hide-s{display:none}
+  table.stack td.r{grid-column:2;grid-row:1}
+  table.stack td.st{grid-column:1 / -1;margin-top:6px}
+}
+
+/* status chips: icon + label, never color alone */
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap;background:var(--card-2);color:var(--muted)}
+.chip svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.chip.approved,.chip.scheduled,.chip.signed{background:var(--accent-soft);color:var(--accent)}
+.chip.waiting,.chip.sent,.chip.tosign{background:var(--warn-bg);color:var(--warn)}
+.chip.deposited,.chip.instant{background:var(--ok-bg);color:var(--ok)}
+.chip.failed{background:var(--err-bg);color:var(--err)}
+.spin{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* filters */
+.filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:14px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.seg button{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:14px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.fld{display:grid;gap:4px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.fld input,.fld select{min-height:40px;font-size:14px;font-weight:400;color:var(--ink)}
+.fld.grow{flex:1 1 200px}
+.filters .btn{margin-left:auto}
+input[type=text],input[type=search],input[type=date],input[type=number],select,textarea{width:100%;min-height:44px;padding:8px 12px;border:2px solid var(--line);border-radius:10px;background:var(--bg)}
+textarea{min-height:90px;resize:vertical;line-height:1.45}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none}
+[aria-invalid="true"]{border-color:var(--err) !important}
+
+/* chart */
+.chart{position:relative;height:220px;margin-top:6px}
+.gl{position:absolute;left:56px;right:0;border-top:1px solid var(--grid)}
+.gl span{position:absolute;right:calc(100% + 8px);top:-9px;font-size:12px;color:var(--muted);white-space:nowrap}
+.gl.base{border-top-color:var(--line)}
+.cols{position:absolute;left:56px;right:0;top:0;bottom:26px;display:flex;align-items:flex-end;gap:2px}
+.col{flex:1 1 0;height:100%;display:flex;align-items:flex-end;justify-content:center;position:relative;background:none;border:0;padding:0;cursor:default}
+.col i{display:block;width:min(70%,26px);background:var(--bar);border-radius:4px 4px 0 0;min-height:2px}
+.col.sched i{background:repeating-linear-gradient(135deg,var(--bar) 0 3px,transparent 3px 6px);border:1.5px solid var(--bar);border-bottom:0}
+.col:hover i,.col:focus-visible i{background:var(--bar-hi)}
+.col.sched:hover i,.col.sched:focus-visible i{background:repeating-linear-gradient(135deg,var(--bar-hi) 0 3px,transparent 3px 6px)}
+.col b{position:absolute;top:100%;margin-top:6px;font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap}
+@media (max-width:640px){.col:nth-child(even) b{visibility:hidden}}
+.tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:var(--bg);font-size:13px;line-height:1.4;padding:8px 10px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;background:var(--bar)}
+.sw.sched{background:repeating-linear-gradient(135deg,var(--bar) 0 2px,transparent 2px 4px);border:1.5px solid var(--bar)}
+
+/* settings */
+.kv{display:grid;grid-template-columns:minmax(120px,190px) 1fr;font-size:14.5px;margin:0}
+.kv dt,.kv dd{margin:0;padding:10px 0;border-top:1px solid var(--line)}
+.kv dt{color:var(--muted)}
+.kv dt:first-of-type,.kv dd:first-of-type{border-top:0}
+.plans{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.plans{grid-template-columns:1fr}}
+.plan{border:2px solid var(--line);border-radius:12px;padding:14px}
+.plan.on{border-color:var(--accent)}
+.plan b{display:block;font-size:16px}
+.plan .when{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:4px 0}
+.plan p{margin:0;font-size:14px;color:var(--muted)}
+.plan .tag{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.switch{display:flex;align-items:flex-start;gap:12px;margin-top:14px;cursor:pointer}
+.switch input{width:20px;height:20px;margin-top:2px;accent-color:var(--accent);flex:none}
+.note{font-size:13.5px;color:var(--muted);margin:10px 0 0}
+.inline{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+.inline .fld{flex:1 1 140px}
+.ratein{width:110px !important;min-height:36px !important;padding:4px 8px !important;text-align:right}
+
+/* dialogs */
+dialog{border:1px solid var(--line);border-radius:16px;padding:0;background:var(--card);color:var(--ink);width:min(580px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
+dialog.wide{width:min(820px,calc(100vw - 24px))}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:22px}
+@media (max-width:480px){.dlg{padding:18px 16px}}
+.dlg-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.dlg h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}
+.dlg .lead{margin:0 0 16px;color:var(--muted);font-size:14.5px}
+.field{margin-bottom:14px}
+.field>label,.field>.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+.field label small{font-weight:400;color:var(--muted)}
+.field .hint{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.field .err{margin:6px 0 0;font-size:13px;color:var(--err)}
+.field .err:empty{display:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:480px){.two{grid-template-columns:1fr}}
+.opts{display:flex;gap:8px;flex-wrap:wrap}
+.opts label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border:2px solid var(--line);border-radius:10px;cursor:pointer;font-weight:500;margin:0}
+.opts.col2{display:grid;grid-template-columns:1fr 1fr}
+@media (max-width:480px){.opts.col2{grid-template-columns:1fr}}
+.opts.col2 label{align-items:flex-start;padding:10px 14px}
+.opts.col2 label span small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.opts label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opts input{accent-color:var(--accent)}
+.opts.col2 input{margin-top:4px}
+.steps{display:flex;gap:6px;list-style:none;margin:0 0 18px;padding:0}
+.steps li{flex:1;font-size:12.5px;font-weight:600;color:var(--muted);border-top:4px solid var(--line);padding-top:6px}
+.steps li.on{color:var(--ink);border-top-color:var(--accent)}
+.steps li.done{border-top-color:var(--accent)}
+.dlg-acts{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap}
+.dlg-acts .left{margin-right:auto}
+.box{border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14.5px;background:var(--card-2)}
+.box>b{display:block}
+.box.ok{background:var(--ok-bg);color:var(--ok)}
+.box.no{background:var(--err-bg);color:var(--err)}
+.box.warn{background:var(--warn-bg);color:var(--warn)}
+.box.info{background:var(--accent-soft)}
+.box.wait{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.box ol{margin:6px 0 0;padding-left:20px}
+.box .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sumrows{margin:0 0 14px;border:1px solid var(--line);border-radius:12px;padding:2px 14px}
+.sumrows div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14.5px}
+.sumrows div:first-child{border-top:0}
+.sumrows span:first-child{color:var(--muted)}
+.sumrows span:last-child{text-align:right}
+.tl{list-style:none;margin:6px 0 0;padding:0}
+.tl li{position:relative;padding:0 0 14px 28px;font-size:14.5px}
+.tl li::before{content:"";position:absolute;left:5px;top:6px;width:12px;height:12px;border-radius:50%;border:2px solid var(--accent);background:var(--accent)}
+.tl li::after{content:"";position:absolute;left:11px;top:20px;bottom:0;width:2px;background:var(--line)}
+.tl li:last-child::after{display:none}
+.tl li.next::before{background:var(--card);border-color:var(--line)}
+.tl li.bad::before{background:var(--err);border-color:var(--err)}
+.tl li small{display:block;color:var(--muted);font-size:13px}
+.h3{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+@media (max-width:640px){.cols2{grid-template-columns:1fr}}
+.wsteps{display:flex;list-style:none;margin:0 0 16px;padding:0;gap:6px}
+.wsteps li{flex:1;border-top:4px solid var(--line);padding-top:6px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.wsteps li.done{border-top-color:var(--accent);color:var(--ink)}
+.wsteps li.now{border-top-color:var(--warn);color:var(--ink)}
+.sigbox{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;display:inline-block}
+.sigbox img{display:block;height:64px;width:auto}
+
+/* invoice editor */
+.ratechips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.ratechips button{min-height:34px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:13px;font-weight:500}
+.ratechips button:hover{border-color:var(--accent)}
+.lines td{padding:6px 4px;vertical-align:top}
+.lines input{min-height:38px;padding:6px 8px}
+.lines .q{width:72px}
+.lines .u{width:100px}
+.lines td.amt{padding-top:14px;white-space:nowrap}
+.totals{margin-left:auto;max-width:340px;margin-top:10px}
+
+.ierr{color:var(--err);font-size:13.5px;margin:6px 0 0}
+.ierr:empty{display:none}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-size:14.5px;z-index:50;max-width:calc(100vw - 32px)}
+.sr{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="scrim" id="scrim"></div>
+  <aside class="side" id="side" aria-label="Main">
+    <div class="logo">
+      <svg width="40" height="22" viewBox="0 0 272 147" aria-hidden="true" focusable="false"><polygon points="132,0 187,0 100,147 0,147"/><polygon points="217,0 272,0 232,147 134,147"/></svg>
+      Payroad
+    </div>
+    <div class="shop"><b id="shopName"></b><span id="planLabel"></span></div>
+    <ul class="nav">
+      <li><a href="#today" data-view="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</a></li>
+      <li><a href="#workorders" data-view="workorders"><svg viewBox="0 0 24 24"><path d="M8 4h8l3 3v13H5V4h3"/><path d="M8 4v3h8V4M8 12h8M8 16h5"/></svg>Work orders<span class="nbadge" id="navWo" hidden></span></a></li>
+      <li><a href="#payments" data-view="payments"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h4M7 14h7"/></svg>Payments<span class="nbadge" id="navPay" hidden></span></a></li>
+      <li><a href="#customers" data-view="customers"><svg viewBox="0 0 24 24"><path d="M3 20V8l6-4 6 4v12M15 12h6v8M7 12h4M7 16h4"/></svg>Customers</a></li>
+      <li data-admin><a href="#deposits" data-view="deposits"><svg viewBox="0 0 24 24"><path d="M4 10h16M6 10v7M10 10v7M14 10v7M18 10v7M3 20h18M12 3l9 5H3z"/></svg>Deposits</a></li>
+      <li data-admin><a href="#settings" data-view="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.6-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>Settings</a></li>
+    </ul>
+    <div class="side-foot">
+      <div class="me"><span class="avatar" id="meAv"></span><div><span id="meName"></span><br><small id="meRole"></small></div></div>
+      <span class="previewtag" id="clerkTag" hidden>Previewing as a clerk</span>
+      <button class="linkbtn" id="exitClerk" hidden>Exit clerk preview</button>
+      <a href="inbox.html" target="_blank" rel="noopener">Driver's inbox (demo) <span aria-hidden="true">&nbsp;↗</span></a>
+      <a href="login.html" id="signOut">Sign out</a>
+    </div>
+  </aside>
+
+  <div>
+    <div class="mobilebar">
+      <button class="iconbtn" id="menu" aria-label="Open menu" aria-expanded="false" aria-controls="side"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="logo"><svg width="34" height="18" viewBox="0 0 272 147" aria-hidden="true" focusable="false"><polygon points="132,0 187,0 100,147 0,147"/><polygon points="217,0 272,0 232,147 134,147"/></svg>Payroad</div>
+      <button class="btn primary sm" data-newwo>New work order</button>
+    </div>
+
+    <main class="main" id="main">
+      <div class="bar" role="region" aria-label="Day status">
+        <div class="daystate" id="dayState"><span class="dot"></span><span id="dayStateText"></span></div>
+        <p class="msg" id="barMsg"></p>
+        <div class="acts">
+          <span class="proto" title="Everything on this page is sample data">Prototype · sample data</span>
+          <button class="btn primary" data-newwo><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New work order</button>
+        </div>
+      </div>
+
+      <!-- TODAY -->
+      <section data-v="today">
+        <div class="vhead">
+          <div><h1 id="todayTitle">Today</h1><p>No signed work order, no work. Create the work order, get the driver's signature, invoice it and charge the money code. Close the day before midnight and the deposit is available at 6:00 am.</p></div>
+        </div>
+        <div class="grid">
+          <ol class="flow s12" id="flow" aria-label="Today's work, step by step"></ol>
+
+          <div class="panel s8" aria-labelledby="batch-h">
+            <h2 id="batch-h">Tonight's batch</h2>
+            <div class="batch-top">
+              <div><div class="big num" id="batchAmt">$0.00</div><div class="big-sub" id="batchSub"></div></div>
+              <div class="count"><b class="num" id="batchCount">0</b>paid invoices</div>
+            </div>
+            <ol class="track" id="track" aria-label="Where tonight's money is"></ol>
+            <div class="batch-foot">
+              <p id="closeMsg"></p>
+              <button class="btn primary" id="closeBtn">Close the day</button>
+            </div>
+          </div>
+          <div class="panel s4" aria-labelledby="todo-h">
+            <h2 id="todo-h">Needs action <small id="todoCount"></small></h2>
+            <ul class="todo" id="todo"></ul>
+          </div>
+
+          <div class="s12 stats" id="stats"></div>
+
+          <div class="panel s12" aria-labelledby="todaywo-h">
+            <h2 id="todaywo-h">Today's work orders <a href="#workorders">All work orders</a></h2>
+            <div class="tablewrap"><table class="stack" id="todayTable"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WORK ORDERS -->
+      <section data-v="workorders" hidden>
+        <div class="vhead">
+          <div><h1>Work orders</h1><p>Every job starts here. The driver signs the work order before the work starts; the invoice and the money code payment come from it.</p></div>
+        </div>
+        <div class="panel">
+          <div class="filters">
+            <div class="seg" id="woSeg" role="group" aria-label="Filter by status"></div>
+            <label class="fld">From<input type="date" id="wFrom"></label>
+            <label class="fld">To<input type="date" id="wTo"></label>
+            <label class="fld">Location<select id="wLocF"></select></label>
+            <label class="fld grow">Search<input type="search" id="wq" placeholder="WO #, customer, driver, unit or job"></label>
+          </div>
+          <div class="tablewrap"><table class="stack" id="woTable"></table></div>
+          <p class="note" id="woNote"></p>
+        </div>
+      </section>
+
+      <!-- PAYMENTS -->
+      <section data-v="payments" hidden>
+        <div class="vhead">
+          <div><h1>Payments</h1><p>Every invoice and its money code payment, from check number to deposit.</p></div>
+        </div>
+        <div class="panel">
+          <div class="filters">
+            <div class="seg" id="seg" role="group" aria-label="Filter by status"></div>
+            <label class="fld">From<input type="date" id="pFrom"></label>
+            <label class="fld">To<input type="date" id="pTo"></label>
+            <label class="fld">Location<select id="pLoc"></select></label>
+            <label class="fld grow">Search<input type="search" id="q" placeholder="Driver, customer, check #, PR- or WO-"></label>
+            <button class="btn" id="pCsv"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export CSV</button>
+          </div>
+          <div class="tablewrap"><table class="stack" id="payTable"></table></div>
+          <p class="note" id="payNote"></p>
+        </div>
+      </section>
+
+      <!-- CUSTOMERS -->
+      <section data-v="customers" hidden>
+        <div class="vhead">
+          <div><h1>Customers</h1><p>The companies that pay: carriers, fleets and brokers, with their contacts and drivers. New ones are added automatically when you create a work order.</p></div>
+          <button class="btn primary" id="newCust"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New customer</button>
+        </div>
+        <div class="panel">
+          <div class="filters"><label class="fld grow">Search<input type="search" id="cq" placeholder="Company, contact or driver"></label></div>
+          <div class="tablewrap"><table class="stack" id="custTable"></table></div>
+        </div>
+      </section>
+
+      <!-- DEPOSITS (admin) -->
+      <section data-v="deposits" hidden>
+        <div class="vhead">
+          <div><h1>Deposits</h1><p>One deposit per closed day, available at 6:00 am. Instant payouts show up one by one. Select a deposit to see every payment and fee in it.</p></div>
+        </div>
+        <div class="grid">
+          <div class="panel s12" aria-labelledby="chart-h">
+            <h2 id="chart-h">Deposits, last 14 days <small id="chartTotal"></small></h2>
+            <div class="chart" id="chart" role="img" aria-describedby="chart-desc"></div>
+            <p class="sr" id="chart-desc">Bar chart of net deposit amounts by day. The same numbers are in the deposits table below.</p>
+            <div class="legend"><span><i class="sw"></i>Deposited</span><span><i class="sw sched"></i>Scheduled for 6:00 am</span></div>
+          </div>
+          <div class="panel s12" aria-labelledby="dep-h">
+            <h2 id="dep-h">All deposits</h2>
+            <div class="filters">
+              <label class="fld">From<input type="date" id="dFrom"></label>
+              <label class="fld">To<input type="date" id="dTo"></label>
+              <button class="btn" id="dCsv"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export CSV</button>
+            </div>
+            <div class="tablewrap"><table class="stack" id="depTable"></table></div>
+            <p class="note">Deposit = invoices + customer fees − Payroad fee. The Payroad fee uses the sample rate in Settings. <span class="fill">[FILL IN: real pricing]</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS (admin) -->
+      <section data-v="settings" hidden>
+        <div class="vhead">
+          <div><h1>Settings</h1><p>Your work order terms and rates, fees, where your money goes, locations and users.</p></div>
+        </div>
+        <div class="grid">
+          <div class="panel s6">
+            <h2>Work order terms</h2>
+            <p class="note" style="margin-top:0">The driver reads and signs this before work starts. Use your own terms, in English and Spanish.</p>
+            <textarea id="terms" rows="12" style="margin-top:10px"></textarea>
+            <p class="note"><span class="fill">[FILL IN: paste the shop's current terms; have them reviewed]</span> Change "ROADSYNC" to the name that will appear on statements.</p>
+          </div>
+          <div class="panel s6">
+            <h2>Rate card</h2>
+            <p class="note" style="margin-top:0">Used to build invoices with one tap. Prices are the shop's.</p>
+            <div class="tablewrap"><table id="rateTable"></table></div>
+          </div>
+
+          <div class="panel s6">
+            <h2>Fees</h2>
+            <label class="switch" style="margin-top:0"><input type="checkbox" id="convOn"><span><b>Charge the customer a money code fee</b><br><small class="muted">Added on top of the invoice, like the 3% check fee today. The express code must cover the total.</small></span></label>
+            <div class="inline" id="convBox"><label class="fld">Customer fee, %<input type="number" id="convRate" min="0" max="10" step="0.1"></label></div>
+            <div class="inline"><label class="fld">Payroad fee, % (sample)<input type="number" id="feeRate" min="0" max="20" step="0.1"></label></div>
+            <p class="note">Taken from each payment before it's deposited. <span class="fill">[FILL IN: real pricing]</span> <span class="fill">[FILL IN: surcharge rules in TX, NM, AZ, NV and CA]</span></p>
+          </div>
+          <div class="panel s6">
+            <h2>Plan</h2>
+            <div class="plans">
+              <div class="plan" id="planBasic"><b>Payroad</b><div class="when">Next morning, 6:00 am</div><p>Close your day before midnight, local time.</p><p style="margin-top:8px">Price: <span class="fill">[FILL IN]</span></p><span class="tag" id="tagBasic">Your plan</span></div>
+              <div class="plan" id="planPro"><b>Payroad Pro</b><div class="when">Instantly</div><p>For Trusted Shops. Paid as each code is charged.</p><p style="margin-top:8px">Price: <span class="fill">[FILL IN]</span></p><span class="tag" id="tagPro">Your plan</span></div>
+            </div>
+            <label class="switch"><input type="checkbox" id="proToggle"><span><b>Preview as a Trusted Shop</b><br><small class="muted">Prototype only. New paid invoices go out instantly instead of at 6:00 am.</small></span></label>
+          </div>
+
+          <div class="panel s6">
+            <h2>Payout account</h2>
+            <dl class="kv">
+              <dt>Bank account</dt><dd>Checking •••• 4821</dd>
+              <dt>Daily deposit</dt><dd>6:00 am the day after you close, local time</dd>
+              <dt>Instant (Pro)</dt><dd>Same account. No debit card or request needed.</dd>
+            </dl>
+            <p class="note">Prototype: changing the account is not available here.</p>
+          </div>
+          <div class="panel s6">
+            <h2>Locations and time zone</h2>
+            <div class="tablewrap"><table id="locTable"></table></div>
+            <p class="note">The day closes at midnight and deposits arrive at 6:00 am in each location's own time. Payroad serves TX, NM, AZ, NV and CA: Central (most of Texas), Mountain (El Paso area, New Mexico), Arizona (no daylight saving) and Pacific (Nevada, California).</p>
+          </div>
+
+          <div class="panel s6">
+            <h2>Users</h2>
+            <div class="tablewrap"><table id="userTable"></table></div>
+            <form class="inline" id="addUser" novalidate>
+              <label class="fld">Name<input type="text" id="uName" autocomplete="off"></label>
+              <label class="fld">Role<select id="uRole"><option>Clerk</option><option>Admin</option></select></label>
+              <button class="btn" type="submit">Add user</button>
+            </form>
+            <p class="note"><b>Admin:</b> everything, including deposits, fees and settings. <b>Clerk:</b> work orders, invoices, charging and closing the day; doesn't see deposits or fees.</p>
+            <label class="switch"><input type="checkbox" id="clerkToggle"><span><b>Preview as a clerk</b><br><small class="muted">See the dashboard the way a clerk sees it.</small></span></label>
+          </div>
+          <div class="panel s6">
+            <h2>Prototype</h2>
+            <p class="empty" style="padding-top:0">Everything here is sample data kept in this browser tab. Nothing is sent. The driver's pages (inbox, signing and payment) open in new tabs and update this dashboard when the driver signs or pays. To see each result when charging, end the express code in:</p>
+            <dl class="kv" style="margin-top:6px">
+              <dt><span class="code">…00</span></dt><dd>Money code not valid for this transaction</dd>
+              <dt><span class="code">…11</span></dt><dd>Amount is more than the code allows</dd>
+              <dt><span class="code">…22</span></dt><dd>Code already used</dd>
+              <dt>Anything else</dt><dd>Paid</dd>
+            </dl>
+            <button class="btn" id="reset" style="margin-top:12px">Reset sample data</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<datalist id="custList"></datalist>
+<datalist id="drvList"></datalist>
+
+<!-- New work order -->
+<dialog id="dWo" aria-labelledby="dWo-h">
+  <form class="dlg" id="fWo" novalidate>
+    <h2 id="dWo-h">New work order</h2>
+    <p class="lead">The driver signs it before the work starts.</p>
+    <p class="h3" style="margin-top:0">Who pays</p>
+    <div class="field"><label for="oCust">Customer (company)</label><input type="text" id="oCust" list="custList" autocomplete="off" aria-describedby="h-oCust"><p class="hint" id="h-oCust">Carrier, fleet or broker. Start typing to pick a saved customer.</p><p class="err" id="e-oCust"></p></div>
+    <div class="field" id="oKindF" hidden><label for="oKind">Type</label><select id="oKind"><option>Carrier</option><option>Fleet</option><option>Broker</option><option>Owner-operator</option></select></div>
+    <div class="two">
+      <div class="field"><label for="oPc">Payer contact <small>(optional)</small></label><input type="text" id="oPc" autocomplete="off" placeholder="Point of contact"></div>
+      <div class="field"><label for="oPr">Payer email or phone <small>(optional)</small></label><input type="text" id="oPr" autocomplete="off"><p class="err" id="e-oPr"></p></div>
+    </div>
+    <p class="h3">Driver and unit</p>
+    <div class="two">
+      <div class="field"><label for="oDrv">Driver name</label><input type="text" id="oDrv" list="drvList" autocomplete="off"><p class="err" id="e-oDrv"></p></div>
+      <div class="field"><label for="oDr">Driver's mobile or email</label><input type="text" id="oDr" autocomplete="off"><p class="err" id="e-oDr"></p></div>
+      <div class="field"><label for="oUnit">Unit or truck # <small>(optional)</small></label><input type="text" id="oUnit" autocomplete="off"></div>
+      <div class="field"><label for="oLoc">Location</label><select id="oLoc"></select></div>
+    </div>
+    <div class="field"><label for="oDesc">Work to be done</label><textarea id="oDesc" rows="3" placeholder="e.g. Steer tire blowout, replace at roadside, mile marker 512"></textarea><p class="err" id="e-oDesc"></p></div>
+    <div class="field">
+      <span class="lbl" id="sv-l">How the driver signs</span>
+      <div class="opts col2" role="radiogroup" aria-labelledby="sv-l">
+        <label><input type="radio" name="oVia" value="link" checked><span>Send a link<small>Text or email to the driver.</small></span></label>
+        <label><input type="radio" name="oVia" value="device"><span>Sign here<small>On this device, at the counter or roadside.</small></span></label>
+      </div>
+    </div>
+    <div class="dlg-acts"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="submit" id="oGo">Create and send</button></div>
+  </form>
+</dialog>
+
+<!-- Work order detail -->
+<dialog id="dWoD" class="wide" aria-labelledby="dWoD-h">
+  <div class="dlg">
+    <div class="dlg-h"><div><h2 id="dWoD-h"></h2><p class="lead" id="dWoDLead"></p></div><button class="xbtn" type="button" data-close aria-label="Close">×</button></div>
+    <ol class="wsteps" id="dWoDSteps" aria-label="Progress"></ol>
+    <div id="dWoDBox"></div>
+    <div class="cols2">
+      <div><p class="h3" style="margin-top:0">Customer</p><div class="sumrows" id="dWoDCust"></div></div>
+      <div><p class="h3" style="margin-top:0">Job</p><div class="sumrows" id="dWoDJob"></div></div>
+    </div>
+    <p class="h3">Authorization</p>
+    <div id="dWoDSig"></div>
+    <div id="dWoDInv"></div>
+    <p class="h3">History</p>
+    <ol class="tl" id="dWoDTl"></ol>
+    <div class="dlg-acts" id="dWoDActs"></div>
+  </div>
+</dialog>
+
+<!-- Invoice editor -->
+<dialog id="dInv" class="wide" aria-labelledby="dInv-h">
+  <form class="dlg" id="fInv" novalidate>
+    <h2 id="dInv-h">Invoice</h2>
+    <p class="lead" id="dInvLead"></p>
+    <p class="h3" style="margin-top:0">Add from your rate card</p>
+    <div class="ratechips" id="rateChips"></div>
+    <div class="tablewrap"><table class="lines" id="invLines"></table></div>
+    <button class="btn sm" type="button" id="addLine" style="margin-top:6px"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Custom line or parts</button>
+    <p class="ierr" id="invErr"></p>
+    <div class="sumrows totals" id="invTotals"></div>
+    <div class="dlg-acts">
+      <button class="btn left" type="button" data-close>Cancel</button>
+      <button class="btn" type="button" id="invSend">Send to driver</button>
+      <button class="btn primary" type="submit">Charge at the counter</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Charge at the counter -->
+<dialog id="dPay" aria-labelledby="dPay-h">
+  <form class="dlg" id="fPay" novalidate>
+    <h2 id="dPay-h">Charge money code</h2>
+    <p class="lead" id="wLead"></p>
+    <ol class="steps" id="wSteps"><li>1 · Check</li><li>2 · Express code</li></ol>
+    <div class="sumrows" id="wSum"></div>
+    <div id="st2">
+      <div class="field">
+        <span class="lbl" id="t-l">Code type</span>
+        <div class="opts" role="radiogroup" aria-labelledby="t-l">
+          <label><input type="radio" name="wType" value="EFS" checked> EFS</label>
+          <label><input type="radio" name="wType" value="Comchek"> Comchek</label>
+        </div>
+      </div>
+      <div class="field">
+        <span class="lbl" id="s-l">Check number</span>
+        <div class="opts col2" role="radiogroup" aria-labelledby="s-l">
+          <label><input type="radio" name="wSrc" value="driver" checked><span>The driver has a check<small>Enter the number printed on it.</small></span></label>
+          <label><input type="radio" name="wSrc" value="echeck"><span>Send a Payroad e-check<small>Payroad texts or emails a check number to the driver.</small></span></label>
+        </div>
+      </div>
+      <div class="field" id="wCheckF"><label for="wCheck">Check number</label><input type="text" id="wCheck" class="code" inputmode="numeric" autocomplete="off"><p class="err" id="e-wCheck"></p></div>
+      <p class="note" id="wEcheckNote" hidden style="margin:-4px 0 14px"><span class="fill">[FILL IN: depends on Payroad's agreement with EFS and Comdata]</span></p>
+      <div class="box" id="wHow"></div>
+    </div>
+    <div id="st3" hidden>
+      <div class="field"><label for="wCode">Express code</label><input type="text" id="wCode" class="code" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby="h-wCode"><p class="hint" id="h-wCode">The driver gets it from their carrier or broker for this check and amount.</p><p class="err" id="e-wCode"></p></div>
+      <div class="two">
+        <div class="field"><label for="wDl">Driver's license #</label><input type="text" id="wDl" autocomplete="off"><p class="err" id="e-wDl"></p></div>
+        <div class="field"><label for="wDlState">License state</label><select id="wDlState"></select></div>
+      </div>
+      <p class="note" style="margin:-4px 0 0">The check requires the driver's license. <span class="fill">[FILL IN: confirm required fields with EFS and Comdata]</span></p>
+    </div>
+    <div id="stR" aria-live="polite"></div>
+    <div class="dlg-acts" id="wActs"></div>
+  </form>
+</dialog>
+
+<!-- Close the day -->
+<dialog id="dClose" aria-labelledby="dClose-h">
+  <div class="dlg">
+    <h2 id="dClose-h">Close the day?</h2>
+    <p class="lead">Paid invoices go into one deposit. You can keep charging after closing; those go into tomorrow's batch.</p>
+    <div class="sumrows" id="closeSum"></div>
+    <div class="box warn" id="closeWarn" hidden></div>
+    <div class="dlg-acts">
+      <button class="btn" type="button" data-close>Not yet</button>
+      <button class="btn primary" type="button" id="closeGo">Close the day</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Payment detail -->
+<dialog id="dDet" aria-labelledby="dDet-h">
+  <div class="dlg">
+    <div class="dlg-h"><div><h2 id="dDet-h"></h2><p class="lead" id="dDetLead"></p></div><button class="xbtn" type="button" data-close aria-label="Close">×</button></div>
+    <div id="dDetBox"></div>
+    <div class="sumrows" id="dDetRows"></div>
+    <p class="h3">History</p>
+    <ol class="tl" id="dDetTl"></ol>
+    <div class="dlg-acts" id="dDetActs"></div>
+  </div>
+</dialog>
+
+<!-- Deposit detail -->
+<dialog id="dDep" class="wide" aria-labelledby="dDep-h">
+  <div class="dlg">
+    <h2 id="dDep-h"></h2>
+    <p class="lead" id="dDepLead"></p>
+    <div class="sumrows" id="dDepRows"></div>
+    <div class="tablewrap"><table class="stack" id="dDepTable"></table></div>
+    <div class="dlg-acts">
+      <button class="btn left" type="button" id="dDepCsv"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download CSV</button>
+      <button class="btn" type="button" data-close>Done</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Customer -->
+<dialog id="dCust" class="wide" aria-labelledby="dCust-h">
+  <form class="dlg" id="fCust" novalidate>
+    <div class="dlg-h"><div><h2 id="dCust-h">Customer</h2><p class="lead" id="dCustLead"></p></div><button class="xbtn" type="button" data-close aria-label="Close">×</button></div>
+    <div class="two">
+      <div class="field"><label for="cName">Company</label><input type="text" id="cName" autocomplete="off"><p class="err" id="e-cName"></p></div>
+      <div class="field"><label for="cKind">Type</label><select id="cKind"><option>Carrier</option><option>Fleet</option><option>Broker</option><option>Owner-operator</option></select></div>
+      <div class="field"><label for="cPc">Payer contact</label><input type="text" id="cPc" autocomplete="off"></div>
+      <div class="field"><label for="cPr">Payer email or phone</label><input type="text" id="cPr" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="cNotes">Notes <small>(optional)</small></label><input type="text" id="cNotes" autocomplete="off" placeholder="e.g. National fleet rate $245/hr, PO required"></div>
+    <p class="h3">Drivers</p>
+    <div class="tablewrap"><table id="cDrivers"></table></div>
+    <div class="inline">
+      <label class="fld">Driver name<input type="text" id="cDn" autocomplete="off"></label>
+      <label class="fld">Mobile or email<input type="text" id="cDr" autocomplete="off"></label>
+      <button class="btn" type="button" id="cAddDrv">Add driver</button>
+    </div>
+    <div id="cHist"></div>
+    <div class="dlg-acts">
+      <button class="btn left" type="button" id="cNewWo">New work order</button>
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="payroad-mock.js"></script>
+<script>
+/* Shop dashboard. Data and flow logic live in payroad-mock.js (shared with the driver pages). */
+(function(){
+  "use strict";
+  var P=window.PR;
+  var $=function(s,r){return (r||document).querySelector(s)};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  var money=P.money, r2=P.r2, esc=P.esc, key=P.key, addDays=P.addDays, at=P.at, fromKey=P.fromKey, time=P.time, shortDate=P.shortDate,
+      longDate=P.longDate, stamp=P.stamp, NOW=P.NOW, dayWord=P.dayWord, sum=P.sum, mask=P.mask, contactMask=P.contactMask,
+      randDigits=P.randDigits, validReach=P.validReach, userName=P.userName, locName=P.locName, cust=P.cust, custByName=P.custByName,
+      wo=P.wo, pay=P.pay, woOf=P.woOf, payOf=P.payOf, ev=P.ev, subtotal=P.subtotal, total=P.total, net=P.net, label=P.label,
+      openBatch=P.openBatch, payAction=P.payAction, woAction=P.woAction, depPays=P.depPays, depTotals=P.depTotals,
+      TZL=P.TZL, SHOP=P.SHOP, STATES=P.STATES;
+  var S, USERS, LOCS, CUST, RATES;
+  function sync(){var d=P.db;S=d.S;USERS=d.USERS;LOCS=d.LOCS;CUST=d.CUST;RATES=d.RATES}
+  function me(){return USERS.filter(function(u){return u.id===(S.clerk?"u2":"u1")})[0]}
+  function isAdmin(){return !S.clerk}
+  function abs(path){return new URL(path,location.href).href}
+  function ext(href,text,cls){return '<a class="btn '+(cls||"")+'" href="'+href+'" target="_blank" rel="noopener">'+text+' <span aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span></a>'}
+
+  /* ---------- chips ---------- */
+  var ICON={
+    approved:'<svg viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></svg>',
+    signed:'<svg viewBox="0 0 16 16"><path d="M2 12c3-6 5-6 5-2s2 3 4-1M10 13h4"/></svg>',
+    tosign:'<svg viewBox="0 0 16 16"><path d="M3 13h10M4 10l7-7 2 2-7 7H4z"/></svg>',
+    sent:'<svg viewBox="0 0 16 16"><path d="M2 8l12-5-5 12-2-5z"/></svg>',
+    waiting:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.5"/></svg>',
+    scheduled:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.5"/></svg>',
+    deposited:'<svg viewBox="0 0 16 16"><path d="M2 8.5l3 3 4-4M7 11.5l7-7"/></svg>',
+    instant:'<svg viewBox="0 0 16 16"><path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z"/></svg>',
+    failed:'<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    canceled:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M4 12l8-8"/></svg>'
+  };
+  function mkChip(cls,text){return '<span class="chip '+cls+'">'+(ICON[cls]||"")+esc(text)+'</span>'}
+  function chip(p){
+    if(p.status==="verifying") return '<span class="chip"><span class="spin" aria-hidden="true"></span>Charging</span>';
+    return mkChip(p.status,label(p));
+  }
+  function woChip(w){
+    if(w.status==="canceled") return mkChip("canceled","Canceled");
+    if(w.status==="sent") return mkChip("tosign","Waiting for signature");
+    if(w.status==="signed") return mkChip("signed","Signed · ready to invoice");
+    return chip(payOf(w));
+  }
+  function row(r){return '<div><span>'+r[0]+'</span><span>'+r[1]+'</span></div>'}
+
+  /* ---------- shared bar + nav ---------- */
+  function renderBar(){
+    var now=NOW(), closed=S.closed[key(now)], left=Math.max(0,at(addDays(now,1),0)-now);
+    var h=Math.floor(left/3600000), m=Math.floor(left%3600000/60000);
+    $("#dayState").classList.toggle("closed",!S.pro&&!!closed);
+    if(S.pro){$("#dayStateText").textContent="Trusted Shop";$("#barMsg").innerHTML="Paid invoices go out <b>instantly</b> to Checking •••• 4821."}
+    else if(closed){$("#dayStateText").textContent="Day closed";$("#barMsg").innerHTML="Closed at "+time(closed)+" "+TZL+". Deposit available <b>tomorrow at 6:00 am</b>."}
+    else{$("#dayStateText").textContent="Day open";$("#barMsg").innerHTML="Close before midnight "+TZL+": <b class=\"num\">"+h+"h "+String(m).padStart(2,"0")+"m left</b> to be paid tomorrow at 6:00 am."}
+    $("#shopName").textContent=SHOP;
+    $("#planLabel").textContent=S.pro?"Payroad Pro · Instant":"Payroad · Next morning";
+    var u=me(); $("#meName").textContent=u.name; $("#meRole").textContent=u.role==="Admin"?"Owner · Admin":"Clerk"; $("#meAv").textContent=u.name.split(" ").map(function(x){return x[0]}).join("").slice(0,2);
+    $("#clerkTag").hidden=!S.clerk; $("#exitClerk").hidden=!S.clerk;
+    var a=woAction().length, b=payAction().length;
+    $("#navWo").hidden=!a; $("#navWo").textContent=a; $("#navPay").hidden=!b; $("#navPay").textContent=b;
+    $$("[data-admin]").forEach(function(e){e.hidden=!isAdmin()});
+  }
+
+  /* ---------- today ---------- */
+  function renderToday(){
+    var now=NOW(), tk=key(now), closed=S.closed[tk], admin=isAdmin();
+    $("#todayTitle").textContent="Today, "+now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+    var toSign=S.wos.filter(function(w){return w.status==="sent"}), toInv=S.wos.filter(function(w){return w.status==="signed"});
+    var toPay=S.payments.filter(function(p){return p.status==="sent"||p.status==="waiting"||p.status==="verifying"}), failed=S.payments.filter(function(p){return p.status==="failed"});
+    var paidT=S.payments.filter(function(p){return p.paidAt&&key(p.paidAt)===tk&&p.status!=="canceled"});
+    $("#flow").innerHTML=[
+      ["Waiting for signature",toSign.length,"Work orders sent",toSign.length],
+      ["Ready to invoice",toInv.length,"Signed, work in progress",0],
+      ["Waiting for payment",toPay.length,money(sum(toPay,total)),0],
+      ["Payment failed",failed.length,failed.length?"Try another code":"None",failed.length],
+      ["Paid today",paidT.length,money(sum(paidT,total)),0]
+    ].map(function(f,i){
+      var href=i===4||i===2?"#payments":"#workorders";
+      return '<li class="'+(f[3]&&i===3?"hot":"")+'"><a href="'+href+'" data-flow="'+i+'"><small>'+f[0]+'</small><b class="num">'+f[1]+'</b><span>'+esc(f[2])+'</span></a></li>';
+    }).join("");
+
+    var batch, sub, steps, msg;
+    if(S.pro){
+      batch=S.payments.filter(function(p){return p.status==="instant"&&p.day===tk});
+      $("#batch-h").textContent="Paid instantly today";
+      sub="Sent to Checking •••• 4821 as each invoice was paid.";
+      steps=[["Invoice paid","",1],["Money sent","Right away",1],["Receipt","Sent to the driver",1],["Nothing to close","Trusted Shop",1]];
+      msg="As a Trusted Shop there's no day to close. Invoices paid before you switched still go out at 6:00 am.";
+    }else if(closed){
+      batch=S.payments.filter(function(p){return p.day===tk&&(p.status==="scheduled"||p.status==="deposited")});
+      $("#batch-h").textContent="Closed tonight";
+      sub="Available tomorrow, "+longDate(addDays(now,1))+", at 6:00 am.";
+      steps=[["Invoices paid",batch.length+" paid",1],["Receipts","Sent to drivers",1],["Day closed","At "+time(closed),1],["6:00 am","Deposit available",0]];
+      var nx=openBatch();
+      msg=nx.length?"<b>"+nx.length+" invoice"+(nx.length>1?"s":"")+" ("+money(sum(nx,total))+")</b> paid after closing will go into tomorrow's batch.":"Invoices paid now go into tomorrow's batch.";
+    }else{
+      batch=openBatch(); $("#batch-h").textContent="Tonight's batch";
+      sub=batch.length?"":"No paid invoices yet today.";
+      steps=[["Invoices paid",batch.length+" paid",batch.length?1:2],["Receipts","Sent to drivers",batch.length?1:0],["Close the day","Before midnight "+TZL,batch.length?2:0],["6:00 am","Deposit available",0]];
+      msg=batch.length?"Closing sends "+(admin?"<b>"+money(sum(batch,net))+"</b> (after fees)":"<b>"+batch.length+" paid invoices</b>")+" to Checking •••• 4821 for 6:00 am tomorrow.":"Paid invoices show up here until you close the day.";
+    }
+    $("#batchAmt").textContent=money(sum(batch,total));
+    $("#batchCount").textContent=batch.length;
+    if(batch.length&&admin&&!S.pro) sub+=(sub?" ":"")+"Deposit after fees: <b>"+money(sum(batch,net))+"</b>.";
+    $("#batchSub").innerHTML=sub;
+    $("#track").innerHTML=steps.map(function(s){return '<li class="'+(s[2]===1?"done":s[2]===2?"now":"")+'"><b>'+esc(s[0])+'</b>'+esc(s[1])+'</li>'}).join("");
+    $("#closeMsg").innerHTML=msg;
+    $("#closeBtn").hidden=S.pro||!!closed; $("#closeBtn").disabled=!openBatch().length;
+
+    var items=[].concat(
+      failed.map(function(p){return {w:woOf(p),f:1,txt:"Payment failed: "+p.reason,btn:"Try again"}}),
+      toPay.map(function(p){return {w:woOf(p),txt:label(p)+" · "+money(total(p)),btn:"Open"}}),
+      toInv.map(function(w){return {w:w,txt:"Signed · ready to invoice",btn:"Invoice"}}),
+      toSign.map(function(w){return {w:w,txt:"Waiting for "+w.driver+"'s signature",btn:"Open"}})
+    );
+    $("#todoCount").textContent=items.length?items.length+" open":"";
+    $("#todo").innerHTML=items.length?items.slice(0,6).map(function(x){
+      return '<li class="'+(x.f?"f":"")+'"><div><b>'+esc(x.w.no)+' · '+esc((cust(x.w.cust)||{}).name)+'</b><small>'+esc(x.txt)+'</small></div><button class="btn sm" data-wo="'+x.w.id+'">'+x.btn+'</button></li>';
+    }).join("")+(items.length>6?'<li style="border:0;padding:0"><a href="#workorders">See all</a></li>':""):'<li style="border:0;padding:0"><p class="empty">All caught up.</p></li>';
+
+    var deps=S.deposits.filter(function(d){return d.at<=now}).sort(function(a,b){return b.at-a.at});
+    var last=deps[0], wk=addDays(at(now,0),-6), woT=S.wos.filter(function(w){return key(w.created)===tk});
+    var tiles=[["Work orders today",woT.length,woT.filter(function(w){return w.signedAt}).length+" signed"],
+               ["Paid today",money(sum(paidT,total)),paidT.length+" invoice"+(paidT.length===1?"":"s")]];
+    if(admin){
+      tiles.push(["Last deposit",last?money(depTotals(last).net):"—",last?(last.instant?"Instant, ":"")+dayWord(last.at)+" "+time(last.at):""]);
+      tiles.push(["Deposited, last 7 days",money(sum(deps.filter(function(d){return d.at>=wk}),function(d){return depTotals(d).net})),"After fees"]);
+    }else{
+      var mine=woT.filter(function(w){return w.clerk===me().id});
+      tiles.push(["Your work orders today",mine.length,""]);
+      tiles.push(["Average invoice",money(paidT.length?sum(paidT,total)/paidT.length:0),"Today"]);
+    }
+    $("#stats").innerHTML=tiles.map(function(s){return '<div class="stat"><div class="stat-l">'+s[0]+'</div><div class="stat-n num">'+esc(s[1])+'</div><div class="stat-s">'+esc(s[2])+'</div></div>'}).join("");
+    var tw=woT.sort(function(a,b){return b.created-a.created});
+    $("#todayTable").innerHTML=tw.length?woTable(tw,true):'<tbody><tr><td><p class="empty">No work orders today.</p></td></tr></tbody>';
+  }
+
+  function woTotal(w){var p=payOf(w);return p?total(p):(w.lines.length?subtotal(w):null)}
+  function woTable(list,todayOnly){
+    return '<thead><tr><th>'+(todayOnly?"Time":"Date")+'</th><th>Customer and driver</th><th class="hide-s">Job</th><th class="r">Total</th><th>Status</th></tr></thead><tbody>'+
+      list.map(function(w){
+        var t=woTotal(w), c=cust(w.cust)||{};
+        return '<tr class="click" data-wo="'+w.id+'">'+
+          '<td class="num">'+(todayOnly?time(w.created):shortDate(w.created))+'<span class="sub code">'+w.no+'</span></td>'+
+          '<td><button class="rowbtn" data-wo="'+w.id+'">'+esc(c.name)+'</button><span class="sub">'+esc(w.driver)+(w.unit?' · '+esc(w.unit):'')+'</span></td>'+
+          '<td class="hide-s">'+esc(w.desc)+'<span class="sub">'+esc(locName(w.loc))+' · '+esc(userName(w.clerk))+'</span></td>'+
+          '<td class="r num">'+(t==null?'<span class="muted">—</span>':'<b>'+money(t)+'</b>')+'</td>'+
+          '<td class="st">'+woChip(w)+'</td></tr>';
+      }).join("")+'</tbody>';
+  }
+
+  /* ---------- work orders view ---------- */
+  var WOF=[["all","All"],["sent","Waiting for signature"],["signed","Ready to invoice"],["pay","Waiting for payment"],["failed","Payment failed"],["paid","Paid"],["canceled","Canceled"]];
+  function woMatch(w,s){
+    var p=payOf(w);
+    if(s==="all") return true;
+    if(s==="pay") return w.status==="invoiced"&&p&&(p.status==="sent"||p.status==="waiting"||p.status==="verifying");
+    if(s==="failed") return w.status==="invoiced"&&p&&p.status==="failed";
+    return w.status===s;
+  }
+  function woFiltered(){
+    var f=S.wf, q=f.q.trim().toLowerCase();
+    return S.wos.filter(function(w){
+      if(!woMatch(w,f.status)) return false;
+      if(f.from&&key(w.created)<f.from) return false;
+      if(f.to&&key(w.created)>f.to) return false;
+      if(f.loc!=="all"&&w.loc!==f.loc) return false;
+      return !q||[w.no,(cust(w.cust)||{}).name,w.driver,w.unit,w.desc].join(" ").toLowerCase().indexOf(q)>-1;
+    }).sort(function(a,b){return b.created-a.created});
+  }
+  function locOptions(sel){return '<option value="all">All locations</option>'+LOCS.map(function(l){return '<option value="'+l.id+'"'+(sel===l.id?" selected":"")+'>'+esc(l.name)+'</option>'}).join("")}
+  function renderWos(){
+    $("#woSeg").innerHTML=WOF.map(function(f){var n=S.wos.filter(function(w){return woMatch(w,f[0])}).length;return '<button type="button" data-f="'+f[0]+'" aria-pressed="'+(S.wf.status===f[0])+'">'+f[1]+' <span class="num" style="opacity:.7">'+n+'</span></button>'}).join("");
+    $("#wLocF").innerHTML=locOptions(S.wf.loc); $("#wFrom").value=S.wf.from; $("#wTo").value=S.wf.to;
+    var l=woFiltered();
+    $("#woTable").innerHTML=l.length?woTable(l,false):'<tbody><tr><td><p class="empty">No work orders match.</p></td></tr></tbody>';
+    $("#woNote").textContent=l.length+" work order"+(l.length===1?"":"s");
+  }
+
+  /* ---------- payments view ---------- */
+  var FILTERS=[["all","All"],["action","Waiting or failed"],["approved","Paid · open batch"],["scheduled","In deposit"],["deposited","Deposited"],["instant","Paid instantly"],["canceled","Canceled"]];
+  function matches(p,s){return s==="all"||(s==="action"?(p.status==="sent"||p.status==="waiting"||p.status==="failed"):p.status===s)}
+  function filtered(){
+    var f=S.pf, q=f.q.trim().toLowerCase();
+    return S.payments.filter(function(p){
+      if(!matches(p,f.status)) return false;
+      if(f.from&&key(p.created)<f.from) return false;
+      if(f.to&&key(p.created)>f.to) return false;
+      if(f.loc!=="all"&&p.loc!==f.loc) return false;
+      return !q||[p.txn,(woOf(p)||{}).no,p.driver,p.carrier,p.job,p.type,p.check].join(" ").toLowerCase().indexOf(q)>-1;
+    }).sort(function(a,b){return b.created-a.created});
+  }
+  function payTable(list){
+    return '<thead><tr><th>Date</th><th>Customer and driver</th><th class="hide-s">Work order</th><th class="hide-s">Check</th><th class="r">Amount</th><th>Status</th></tr></thead><tbody>'+
+      list.map(function(p){
+        return '<tr class="click" data-pay="'+p.id+'">'+
+          '<td class="num">'+shortDate(p.created)+'<span class="sub">'+time(p.created)+'</span></td>'+
+          '<td><button class="rowbtn" data-pay="'+p.id+'">'+esc(p.carrier)+'</button><span class="sub">'+esc(p.driver)+' · '+p.txn+'</span></td>'+
+          '<td class="hide-s"><span class="code">'+esc((woOf(p)||{}).no)+'</span><span class="sub">'+esc(p.job)+'</span></td>'+
+          '<td class="hide-s">'+(p.check?'<span class="code">'+p.type+' #'+esc(p.check.slice(-6))+'</span><span class="sub">'+(p.code?"Code "+mask(p.code):"No code yet")+'</span>':'<span class="muted">Not chosen yet</span>')+'</td>'+
+          '<td class="r num"><b>'+money(total(p))+'</b>'+(p.conv?'<span class="sub">incl. '+money(p.conv)+' fee</span>':'')+'</td>'+
+          '<td class="st">'+chip(p)+(p.reason?'<span class="sub">'+esc(p.reason)+'</span>':'')+'</td></tr>';
+      }).join("")+'</tbody>';
+  }
+  function renderPayments(){
+    $("#seg").innerHTML=FILTERS.map(function(f){
+      var n=S.payments.filter(function(p){return matches(p,f[0])}).length;
+      if(f[0]==="instant"&&!n) return "";
+      return '<button type="button" data-f="'+f[0]+'" aria-pressed="'+(S.pf.status===f[0])+'">'+f[1]+' <span class="num" style="opacity:.7">'+n+'</span></button>';
+    }).join("");
+    $("#pLoc").innerHTML=locOptions(S.pf.loc); $("#pFrom").value=S.pf.from; $("#pTo").value=S.pf.to;
+    var list=filtered();
+    $("#payTable").innerHTML=list.length?payTable(list):'<tbody><tr><td><p class="empty">No payments match.</p></td></tr></tbody>';
+    var paid=list.filter(function(p){return p.paidAt&&p.status!=="canceled"});
+    $("#payNote").textContent=list.length+" payment"+(list.length===1?"":"s")+" · "+money(sum(paid,total))+" paid"+(isAdmin()?" · "+money(sum(paid,function(p){return p.fee}))+" Payroad fees (sample)":"");
+  }
+
+  /* ---------- customers ---------- */
+  function custStats(c){
+    var ws=S.wos.filter(function(w){return w.cust===c.id}), ps=S.payments.filter(function(p){return woOf(p)&&woOf(p).cust===c.id&&p.paidAt&&p.status!=="canceled"});
+    var last=ws.reduce(function(m,w){return !m||w.created>m?w.created:m},null);
+    return {wos:ws,count:ws.length,paid:sum(ps,total),last:last};
+  }
+  function renderCustomers(){
+    var q=S.cq.trim().toLowerCase();
+    var l=CUST.filter(function(c){return !q||[c.name,c.pc,c.pr].concat(c.drivers.map(function(d){return d.name})).join(" ").toLowerCase().indexOf(q)>-1})
+      .map(function(c){return {c:c,s:custStats(c)}}).sort(function(a,b){return (b.s.last||0)-(a.s.last||0)});
+    $("#custTable").innerHTML=l.length?'<thead><tr><th>Company</th><th class="hide-s">Payer contact</th><th class="hide-s">Drivers</th><th class="hide-s">Work orders</th><th class="r">Paid</th><th>Last job</th></tr></thead><tbody>'+
+      l.map(function(x){var c=x.c,s=x.s;return '<tr class="click" data-cust="'+c.id+'"><td><button class="rowbtn" data-cust="'+c.id+'">'+esc(c.name)+'</button><span class="sub">'+esc(c.kind)+(c.notes?' · '+esc(c.notes):'')+'</span></td>'+
+        '<td class="hide-s">'+(c.pc?esc(c.pc):'<span class="muted">—</span>')+'<span class="sub">'+esc(c.pr)+'</span></td><td class="hide-s num">'+c.drivers.length+'</td><td class="hide-s num">'+s.count+'</td>'+
+        '<td class="r num"><b>'+money(s.paid)+'</b></td><td class="st">'+(s.last?shortDate(s.last):'<span class="muted">—</span>')+'</td></tr>'}).join("")+'</tbody>':'<tbody><tr><td><p class="empty">No customers match.</p></td></tr></tbody>';
+  }
+  var curCust=null, cDrv=[];
+  function openCustomer(c){
+    curCust=c||null; cDrv=c?c.drivers.map(function(d){return {name:d.name,reach:d.reach}}):[];
+    $("#fCust").reset(); $("#e-cName").textContent=""; $("#cName").removeAttribute("aria-invalid");
+    $("#dCust-h").textContent=c?c.name:"New customer";
+    $("#cName").value=c?c.name:""; $("#cKind").value=c?c.kind:"Carrier"; $("#cPc").value=c?c.pc:""; $("#cPr").value=c?c.pr:""; $("#cNotes").value=c?c.notes:"";
+    var s=c?custStats(c):null;
+    $("#dCustLead").textContent=c?c.kind+" · "+s.count+" work orders · "+money(s.paid)+" paid":"Add a carrier, fleet or broker you work with.";
+    $("#cNewWo").hidden=!c;
+    renderCDrivers();
+    $("#cHist").innerHTML=c&&s.count?'<p class="h3">Recent work orders</p><div class="tablewrap"><table class="stack">'+woTable(s.wos.slice().sort(function(a,b){return b.created-a.created}).slice(0,6),false)+'</table></div>':"";
+    openDlg($("#dCust"));
+  }
+  function renderCDrivers(){
+    $("#cDrivers").innerHTML=cDrv.length?'<thead><tr><th>Name</th><th>Mobile or email</th><th></th></tr></thead><tbody>'+cDrv.map(function(d,i){return '<tr><td>'+esc(d.name)+'</td><td>'+esc(d.reach)+'</td><td class="r"><button class="btn sm danger" type="button" data-rmdrv="'+i+'">Remove</button></td></tr>'}).join("")+'</tbody>':'<tbody><tr><td><p class="empty">No drivers yet. They are added when you create work orders.</p></td></tr></tbody>';
+  }
+  $("#cAddDrv").addEventListener("click",function(){
+    var n=$("#cDn").value.trim(), r=$("#cDr").value.trim();
+    if(!n){$("#cDn").setAttribute("aria-invalid","true");$("#cDn").focus();return}
+    $("#cDn").removeAttribute("aria-invalid"); cDrv.push({name:n,reach:r}); $("#cDn").value=""; $("#cDr").value=""; renderCDrivers(); $("#cDn").focus();
+  });
+  $("#cDrivers").addEventListener("click",function(e){var b=e.target.closest("[data-rmdrv]");if(b){cDrv.splice(+b.getAttribute("data-rmdrv"),1);renderCDrivers()}});
+  $("#fCust").addEventListener("submit",function(e){
+    e.preventDefault();
+    var n=$("#cName").value.trim(), dup=custByName(n);
+    if(!n||(dup&&dup!==curCust)){$("#e-cName").textContent=n?"There's already a customer with that name.":"Enter the company name.";$("#cName").setAttribute("aria-invalid","true");$("#cName").focus();return}
+    var c=curCust||{id:"c"+Date.now(),drivers:[]};
+    c.name=n; c.kind=$("#cKind").value; c.pc=$("#cPc").value.trim(); c.pr=$("#cPr").value.trim(); c.notes=$("#cNotes").value.trim(); c.drivers=cDrv;
+    if(!curCust) CUST.push(c);
+    S.payments.forEach(function(p){var w=woOf(p);if(w&&w.cust===c.id)p.carrier=c.name});
+    $("#dCust").close(); render(); toast(n+" saved.");
+  });
+  $("#cNewWo").addEventListener("click",function(){var c=curCust;$("#dCust").close();openNewWo(c)});
+  $("#newCust").addEventListener("click",function(){openCustomer(null)});
+  $("#cq").addEventListener("input",function(){S.cq=this.value;renderCustomers()});
+
+  /* ---------- new work order ---------- */
+  function fillLists(c){
+    $("#custList").innerHTML=CUST.map(function(x){return '<option value="'+esc(x.name)+'"></option>'}).join("");
+    $("#drvList").innerHTML=c?c.drivers.map(function(d){return '<option value="'+esc(d.name)+'"></option>'}).join(""):"";
+  }
+  function onCustInput(){
+    var c=custByName($("#oCust").value), v=$("#oCust").value.trim();
+    fillLists(c);
+    $("#oKindF").hidden=!!c||!v;
+    $("#h-oCust").textContent=c?"Saved customer · "+c.kind+(c.notes?" · "+c.notes:""):(v?"New customer. It will be added to Customers.":"Carrier, fleet or broker. Start typing to pick a saved customer.");
+    if(c){if(!$("#oPc").value)$("#oPc").value=c.pc;if(!$("#oPr").value)$("#oPr").value=c.pr}
+  }
+  function onDrvInput(){
+    var c=custByName($("#oCust").value), d=c&&c.drivers.filter(function(x){return x.name.toLowerCase()===$("#oDrv").value.trim().toLowerCase()})[0];
+    if(d&&!$("#oDr").value) $("#oDr").value=d.reach;
+  }
+  $("#oCust").addEventListener("input",onCustInput);
+  $("#oDrv").addEventListener("input",onDrvInput);
+  $$("input[name=oVia]").forEach(function(i){i.addEventListener("change",function(){$("#oGo").textContent=this.value==="device"?"Create and sign now":"Create and send"})});
+  function openNewWo(c){
+    $("#fWo").reset(); $$("#fWo .err").forEach(function(e){e.textContent=""}); $$("#fWo [aria-invalid]").forEach(function(e){e.removeAttribute("aria-invalid")});
+    $("#oLoc").innerHTML=LOCS.map(function(l){return '<option value="'+l.id+'">'+esc(l.name)+'</option>'}).join("");
+    $("#oGo").textContent="Create and send";
+    if(c) $("#oCust").value=c.name;
+    onCustInput(); openDlg($("#dWo")); setTimeout(function(){(c?$("#oDrv"):$("#oCust")).focus()});
+  }
+  $$("[data-newwo]").forEach(function(b){b.addEventListener("click",function(){openNewWo(null)})});
+  function fErr(id,msg){var e=$("#e-"+id);if(e)e.textContent=msg||"";$("#"+id).setAttribute("aria-invalid",msg?"true":"false");return !!msg}
+  $("#fWo").addEventListener("submit",function(e){
+    e.preventDefault();
+    var cn=$("#oCust").value.trim(), pr=$("#oPr").value.trim(), dn=$("#oDrv").value.trim(), dr=$("#oDr").value.trim(), ds=$("#oDesc").value.trim();
+    fErr("oCust",cn?"":"Enter the company that pays.");
+    fErr("oPr",!pr||validReach(pr)?"":"Enter a valid email or 10-digit phone.");
+    fErr("oDrv",dn?"":"Enter the driver's name.");
+    fErr("oDr",!dr?"The driver needs a mobile or email to get the work order and receipt.":(validReach(dr)?"":"Enter a valid email or 10-digit phone."));
+    fErr("oDesc",ds?"":"Describe the work to be done.");
+    var first=$$("#fWo [aria-invalid=true]")[0]; if(first){first.focus();return}
+    var c=custByName(cn), isNew=!c;
+    if(!c){c={id:"c"+Date.now(),name:cn,kind:$("#oKind").value,pc:$("#oPc").value.trim(),pr:pr,notes:"",drivers:[]};CUST.push(c)}
+    if(!c.drivers.some(function(d){return d.name.toLowerCase()===dn.toLowerCase()})) c.drivers.push({name:dn,reach:dr});
+    var via=$("input[name=oVia]:checked").value;
+    var w=P.newWo({cust:c.id,pc:$("#oPc").value.trim(),pr:pr,driver:dn,dr:dr,unit:$("#oUnit").value.trim(),loc:$("#oLoc").value,desc:ds,via:via,clerk:me().id},NOW());
+    $("#dWo").close(); render();
+    if(via==="device"){window.open(P.signUrl(w)+"&device=1","_blank");toast(w.no+" created. The signing page opened in a new tab.")}
+    else{openWo(w);toast(w.no+" sent to "+dn+" for signature."+(isNew?" "+cn+" added to Customers.":""))}
+  });
+
+  /* ---------- work order detail ---------- */
+  var curWo=null;
+  function linkBox(url,label2){return '<div class="btnrow">'+ext(url,label2,"sm primary")+'<button class="btn sm" type="button" data-copy="'+esc(url)+'">Copy link</button></div>'}
+  function openWo(w){
+    curWo=w; var c=cust(w.cust)||{}, p=payOf(w), admin=isAdmin();
+    $("#dWoD-h").textContent=w.no+" · "+c.name;
+    $("#dWoDLead").textContent=w.desc+" · "+locName(w.loc)+" · created "+stamp(w.created);
+    var paid=p&&p.paidAt&&p.status!=="canceled", dep=p&&(p.status==="deposited"||p.status==="instant");
+    var st=[["Sent",1],["Signed",w.signedAt?1:(w.status==="sent"?2:0)],["Invoiced",w.invAt?1:(w.status==="signed"?2:0)],["Paid",paid?1:(w.status==="invoiced"?2:0)],["Deposited",dep?1:(paid?2:0)]];
+    if(w.status==="canceled") st=st.map(function(s){return [s[0],s[1]===1?1:0]});
+    $("#dWoDSteps").innerHTML=st.map(function(s){return '<li class="'+(s[1]===1?"done":s[1]===2?"now":"")+'">'+s[0]+'</li>'}).join("");
+    var box="";
+    if(w.status==="sent") box='<div class="box warn"><b>Waiting for '+esc(w.driver)+'\'s signature</b>'+(w.via==="link"?"Link sent to "+esc(contactMask(w.dr))+". The work starts once it's signed. This is the page the driver opens:":"Open the signing page on this device and hand it to the driver.")+linkBox(P.signUrl(w)+(w.via==="device"?"&device=1":""),w.via==="link"?"Open the driver's signing page":"Open signing page")+'</div>';
+    if(w.status==="signed") box='<div class="box info"><b>Signed. Work can start.</b>When the work is done, create the invoice from your rate card.</div>';
+    if(w.status==="invoiced"&&p){
+      var lk=linkBox(P.payUrl(p),"Open the driver's payment page");
+      if(p.status==="failed") box='<div class="box no"><b>Payment failed · '+esc(p.reason)+'</b>Ask the driver to confirm the code and amount with their carrier, then try again.'+lk+'</div>';
+      else if(p.status==="waiting") box='<div class="box warn"><b>Waiting for the express code</b>'+esc(w.driver)+' needs an express code for '+p.type+' check #'+esc(p.check)+' for '+money(total(p))+'.'+lk+'</div>';
+      else box='<div class="box warn"><b>'+esc(label(p))+'</b>'+(p.via==="link"?"The driver pays from this page, or you charge the express code here.":"Charge the money code at the counter, or send the invoice to the driver.")+lk+'</div>';
+    }
+    if(w.status==="canceled") box='<div class="box"><b>Canceled</b>Nothing was charged.</div>';
+    $("#dWoDBox").innerHTML=box;
+    $("#dWoDCust").innerHTML=[["Company",'<button class="rowbtn" style="color:var(--accent)" data-cust="'+w.cust+'">'+esc(c.name)+'</button>'],["Payer contact",esc(w.pc||"—")],["Payer reach",esc(w.pr||"—")],["Driver",esc(w.driver)],["Driver's mobile or email",esc(w.dr)]].map(row).join("");
+    $("#dWoDJob").innerHTML=[["Work",esc(w.desc)],["Unit",esc(w.unit||"—")],["Location",esc(locName(w.loc))],["Created by",esc(userName(w.clerk))]].map(row).join("");
+    $("#dWoDSig").innerHTML=w.signedAt?'<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center"><span class="sigbox"><img src="'+w.sig+'" alt="Signature of '+esc(w.signer)+'"></span><div><b>'+esc(w.signer)+'</b><br><span class="muted">Signed '+stamp(w.signedAt)+(w.sigVia==="device"?" on the shop's device":" from the link")+'. Agreed to the work order terms.</span></div></div>':'<p class="empty">Not signed yet.</p>';
+    var inv="";
+    if(w.lines.length){
+      inv='<p class="h3">Invoice'+(p?' <span class="code" style="letter-spacing:0">'+p.txn+'</span>':'')+'</p><div class="tablewrap"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>'+
+        w.lines.map(function(l){return '<tr><td>'+esc(l.d)+'</td><td class="r num">'+l.q+'</td><td class="r num">'+money(l.u)+'</td><td class="r num">'+money(r2(l.q*l.u))+'</td></tr>'}).join("")+'</tbody></table></div>'+
+        '<div class="sumrows totals"><div><span>Subtotal</span><span class="num">'+money(subtotal(w))+'</span></div>'+(p&&p.conv?'<div><span>Money code fee (customer)</span><span class="num">'+money(p.conv)+'</span></div>':'')+
+        (p?'<div><span>Total</span><b class="num">'+money(total(p))+'</b></div><div><span>Payment</span><span>'+chip(p)+'</span></div>':'')+
+        (admin&&p&&p.paidAt?'<div><span>Payroad fee (sample)</span><span class="num">−'+money(p.fee)+'</span></div><div><span>Net to you</span><b class="num">'+money(net(p))+'</b></div>':'')+'</div>';
+    }
+    $("#dWoDInv").innerHTML=inv;
+    var evs=w.events.concat(p?p.events.filter(function(x){return !/^Invoice for/.test(x.text)}):[]).sort(function(a,b){return a.at-b.at});
+    if(w.status==="sent") evs.push({at:null,text:"Driver signs",kind:"next"});
+    if(w.status==="signed") evs.push({at:null,text:"Invoice when the work is done",kind:"next"});
+    if(p&&p.status==="approved") evs.push({at:null,text:"Day closes, deposit at 6:00 am",kind:"next"});
+    if(p&&p.status==="scheduled") evs.push({at:p.depAt,text:"Deposit to Checking •••• 4821",kind:"next"});
+    $("#dWoDTl").innerHTML=evs.map(function(x){return '<li class="'+x.kind+'"><b>'+esc(x.text)+'</b><small>'+(x.at?stamp(x.at):"Next")+'</small></li>'}).join("");
+    var a=[];
+    if(w.status==="sent"){a.push('<button class="btn danger left" type="button" data-act="cancel">Cancel work order</button>');if(w.via==="link")a.push('<button class="btn" type="button" data-act="resend">Resend link</button>');a.push(ext(P.signUrl(w)+"&device=1","Sign on this device","primary"))}
+    if(w.status==="signed"){a.push('<button class="btn danger left" type="button" data-act="cancel">Cancel work order</button>');a.push('<button class="btn primary" type="button" data-act="invoice">Create invoice</button>')}
+    if(w.status==="invoiced"&&p){
+      a.push('<button class="btn danger left" type="button" data-act="cancel">Cancel</button>');
+      a.push('<button class="btn" type="button" data-act="sendinv">'+(p.via==="link"?"Resend invoice":"Send invoice to driver")+'</button>');
+      if(p.status!=="verifying") a.push('<button class="btn primary" type="button" data-act="charge">'+(p.status==="failed"?"Try again":p.status==="waiting"?"Enter express code":"Charge at the counter")+'</button>');
+    }
+    if(w.status==="paid"&&p){a.push('<button class="btn left" type="button" data-act="viewpay">View payment</button>');a.push(ext(P.payUrl(p),"Driver's receipt"));a.push('<button class="btn" type="button" data-act="receipt">Resend receipt</button>')}
+    a.push('<button class="btn" type="button" data-close>Close</button>');
+    $("#dWoDActs").innerHTML=a.join("");
+    if(!$("#dWoD").open) openDlg($("#dWoD"));
+  }
+  $("#dWoDActs").addEventListener("click",function(e){
+    var b=e.target.closest("[data-act]"); if(!b||!curWo) return;
+    var w=curWo, p=payOf(w), act=b.getAttribute("data-act");
+    if(act==="cancel"){P.cancelWo(w,me().name);render();openWo(w);toast(w.no+" canceled.")}
+    if(act==="resend"){P.resendWo(w);render();openWo(w);toast("Link resent to "+contactMask(w.dr)+". See it in the driver inbox.")}
+    if(act==="invoice"){$("#dWoD").close();openInvoice(w)}
+    if(act==="sendinv"){P.sendInvoice(p);render();openWo(w);toast("Invoice sent to "+contactMask(p.contact)+". See it in the driver inbox.")}
+    if(act==="charge"){$("#dWoD").close();openCharge(p)}
+    if(act==="viewpay"){$("#dWoD").close();openDetail(p)}
+    if(act==="receipt"){P.resendReceipt(p);render();openWo(w);toast("Receipt resent to "+contactMask(p.contact)+".")}
+  });
+
+  /* ---------- invoice editor ---------- */
+  var invLines=[];
+  function openInvoice(w){
+    curWo=w; invLines=w.lines.length?w.lines.map(function(l){return {d:l.d,q:l.q,u:l.u}}):[];
+    $("#dInv-h").textContent="Invoice · "+w.no;
+    $("#dInvLead").textContent=(cust(w.cust)||{}).name+" · "+w.driver+" · "+w.desc;
+    $("#rateChips").innerHTML=RATES.map(function(r,i){return '<button type="button" data-rate="'+i+'">+ '+esc(r.d)+' · '+money(r.u)+'/'+r.per+'</button>'}).join("");
+    $("#invErr").textContent=""; renderLines(); openDlg($("#dInv"));
+  }
+  function renderLines(){
+    $("#invLines").innerHTML=invLines.length?'<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th><th></th></tr></thead><tbody>'+
+      invLines.map(function(l,i){return '<tr><td><input type="text" aria-label="Item" data-i="'+i+'" data-k="d" value="'+esc(l.d)+'"></td><td><input class="q num" type="number" step="0.5" min="0" aria-label="Quantity" data-i="'+i+'" data-k="q" value="'+l.q+'"></td><td><input class="u num" type="number" step="0.01" min="0" aria-label="Price" data-i="'+i+'" data-k="u" value="'+l.u+'"></td><td class="r num amt">'+money(r2(l.q*l.u))+'</td><td><button class="xbtn" type="button" data-rm="'+i+'" aria-label="Remove line">×</button></td></tr>'}).join("")+'</tbody>'
+      :'<tbody><tr><td><p class="empty">Add items from your rate card or a custom line.</p></td></tr></tbody>';
+    renderTotals();
+  }
+  function renderTotals(){
+    var s=sum(invLines,function(l){return (+l.q||0)*(+l.u||0)}), c=S.convOn?r2(s*S.convRate/100):0;
+    $("#invTotals").innerHTML='<div><span>Subtotal</span><span class="num">'+money(s)+'</span></div>'+(S.convOn?'<div><span>Money code fee ('+S.convRate+'%, paid by customer)</span><span class="num">'+money(c)+'</span></div>':'')+'<div><span>Total with express code</span><b class="num">'+money(r2(s+c))+'</b></div>';
+    $$("#invLines td.amt").forEach(function(td,i){var l=invLines[i];td.textContent=money(r2((+l.q||0)*(+l.u||0)))});
+  }
+  $("#rateChips").addEventListener("click",function(e){var b=e.target.closest("[data-rate]");if(!b)return;var r=RATES[+b.getAttribute("data-rate")];invLines.push({d:r.d,q:1,u:r.u});renderLines();$("#invErr").textContent=""});
+  $("#addLine").addEventListener("click",function(){invLines.push({d:"",q:1,u:0});renderLines();var ins=$$("#invLines input[data-k=d]");ins[ins.length-1].focus()});
+  $("#invLines").addEventListener("input",function(e){var t=e.target,i=t.getAttribute("data-i");if(i==null)return;var k=t.getAttribute("data-k");invLines[+i][k]=k==="d"?t.value:parseFloat(t.value)||0;renderTotals()});
+  $("#invLines").addEventListener("click",function(e){var b=e.target.closest("[data-rm]");if(b){invLines.splice(+b.getAttribute("data-rm"),1);renderLines()}});
+  function saveInvoice(via){
+    var ls=invLines.filter(function(l){return (l.q*l.u)>0});
+    if(!ls.length){$("#invErr").textContent="Add at least one item with a price.";return null}
+    if(ls.some(function(l){return !String(l.d).trim()})){$("#invErr").textContent="Every line needs a description.";return null}
+    curWo.lines=ls.map(function(l){return {d:String(l.d).trim(),q:+l.q,u:r2(+l.u)}});
+    var p=P.invoiceWo(curWo,NOW(),via,me().id);
+    $("#dInv").close(); render(); return p;
+  }
+  $("#invSend").addEventListener("click",function(){var p=saveInvoice("link");if(p){openWo(woOf(p));toast("Invoice "+p.txn+" for "+money(total(p))+" sent to "+contactMask(p.contact)+".")}});
+  $("#fInv").addEventListener("submit",function(e){e.preventDefault();var p=saveInvoice("counter");if(p)openCharge(p)});
+
+  /* ---------- charge at the counter ---------- */
+  var W={step:2,p:null};
+  function setErr(id,msg){var e=$("#e-"+id);if(e)e.textContent=msg||"";$("#"+id).setAttribute("aria-invalid",msg?"true":"false");return !!msg}
+  function clearErrs(){$$("#fPay .err").forEach(function(e){e.textContent=""});$$("#fPay [aria-invalid]").forEach(function(e){e.removeAttribute("aria-invalid")})}
+  function srcVal(){return $("input[name=wSrc]:checked").value}
+  function typeVal(){return $("input[name=wType]:checked").value}
+  function fillSum(){
+    var p=W.p, w=woOf(p);
+    $("#wSum").innerHTML=row(["Invoice",'<span class="code">'+p.txn+'</span> · '+esc(w.no)])+row(["Customer",esc(p.carrier)+" · "+esc(p.driver)])+
+      (W.step===3&&p.check?row(["Check",'<span class="code">'+p.type+' #'+esc(p.check)+'</span>']):"")+row(["Charge","<b class=\"num\">"+money(total(p))+"</b>"+(p.conv?' <span class="muted">(incl. '+money(p.conv)+' fee)</span>':'')]);
+  }
+  function step(n){
+    W.step=n; $("#stR").innerHTML=""; $("#st2").hidden=n!==2; $("#st3").hidden=n!==3; $("#wSum").hidden=false; $("#wSteps").hidden=false;
+    $$("#wSteps li").forEach(function(li,i){li.className=i+2===n?"on":i+2<n?"done":""});
+    fillSum();
+    if(n===2){updSrc();$("#wActs").innerHTML='<button class="btn" type="button" data-close>Cancel</button><button class="btn" type="button" data-wsave>Save, wait for code</button><button class="btn primary" type="submit">Next: express code</button>';setTimeout(function(){$("input[name=wType]:checked").focus()})}
+    if(n===3){$("#wActs").innerHTML='<button class="btn left" type="button" data-back>Change check</button><button class="btn" type="button" data-close>Later</button><button class="btn primary" type="submit">Confirm and charge</button>';setTimeout(function(){$("#wCode").focus()})}
+  }
+  function updSrc(){
+    var e=srcVal()==="echeck", p=W.p, t=typeVal();
+    $("#wCheckF").hidden=e; $("#wEcheckNote").hidden=!e;
+    $("#wHow").innerHTML="<b>What happens next</b><ol>"+(e?"<li>Payroad sends an "+t+" check number to "+esc(contactMask(p.contact))+".</li>":"<li>You enter the number on "+esc(p.driver)+"'s "+t+" check.</li>")+
+      "<li>"+esc(p.driver)+" asks their carrier or broker for an express code for that check, for <b style=\"display:inline\">"+money(total(p))+"</b>.</li><li>You enter the express code and charge it. If it isn't ready, save and come back.</li></ol>";
+  }
+  function openCharge(p){
+    W.p=p; $("#fPay").reset(); clearErrs();
+    $("#wDlState").innerHTML=STATES.map(function(s){return '<option>'+s+'</option>'}).join(""); $("#wDlState").value=p.dlState||"TX";
+    $("#dPay-h").textContent="Charge money code · "+money(total(p));
+    $("#wLead").textContent=p.status==="failed"?"The last code failed: "+p.reason+". Enter another express code, or change the check.":"Charge the express code for this invoice.";
+    if(p.type){$$("input[name=wType]").forEach(function(i){i.checked=i.value===p.type});$$("input[name=wSrc]").forEach(function(i){i.checked=i.value===p.src});$("#wCheck").value=p.src==="driver"?p.check:""}
+    openDlg($("#dPay")); step(p.check?3:2);
+  }
+  $$("input[name=wSrc],input[name=wType]").forEach(function(i){i.addEventListener("change",updSrc)});
+  function saveCheck(){
+    var src=srcVal(), type=typeVal(), chk=$("#wCheck").value.replace(/[\s-]/g,""), p=W.p;
+    if(src==="driver"&&setErr("wCheck",!chk?"Enter the check number.":(!/^\d{6,15}$/.test(chk)?"Use 6 to 15 digits.":""))){$("#wCheck").focus();return false}
+    var num=src==="echeck"?(p.src==="echeck"&&p.type===type&&p.check?p.check:randDigits()):chk;
+    P.setCheck(p,type,src,num,NOW(),"shop"); return true;
+  }
+  $("#wActs").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    if(b.hasAttribute("data-back")) step(2);
+    if(b.hasAttribute("data-wsave")&&saveCheck()){$("#dPay").close();render();toast(W.p.txn+" saved. Waiting for the express code.")}
+    if(b.hasAttribute("data-retry")){$("#wCode").value="";clearErrs();$("#wLead").textContent="Enter another express code.";step(3)}
+    if(b.hasAttribute("data-switch")){$$("input[name=wType]").forEach(function(i){i.checked=i.value!==W.p.type});step(2)}
+    if(b.hasAttribute("data-viewwo")){$("#dPay").close();openWo(woOf(W.p))}
+  });
+  $("#fPay").addEventListener("submit",function(e){
+    e.preventDefault();
+    if(W.step===2){if(saveCheck()){render();step(3)}return}
+    if(W.step===3&&!$("#stR").innerHTML){
+      clearErrs(); var code=$("#wCode").value.replace(/[\s-]/g,""), dl=$("#wDl").value.trim();
+      var bc=setErr("wCode",!code?"Enter the express code.":(!/^\d{8,12}$/.test(code)?"Express codes are 8 to 12 digits. Check for a missing or extra digit.":""));
+      var bd=setErr("wDl",dl?"":"Enter the driver's license number.");
+      if(bc||bd){(bc?$("#wCode"):$("#wDl")).focus();return}
+      $("#st3").hidden=true; $("#wSteps").hidden=true; $("#wSum").hidden=true; $("#wActs").innerHTML="";
+      $("#stR").innerHTML='<div class="box wait"><span class="spin" aria-hidden="true"></span>Charging '+money(total(W.p))+' with '+(W.p.type==="EFS"?"EFS":"Comdata")+'…</div>';
+      P.chargeCode(W.p,code,dl,$("#wDlState").value,"shop",function(fail,p){
+        sync(); W.p=p; render();
+        if(fail){
+          $("#stR").innerHTML='<div class="box no"><b>Not paid · '+esc(fail)+'</b>Check the code and the amount with the driver. Nothing was charged.</div>';
+          $("#wActs").innerHTML='<button class="btn left" type="button" data-switch>Switch to '+(p.type==="EFS"?"Comchek":"EFS")+'</button><button class="btn" type="button" data-close>Later</button><button class="btn primary" type="button" data-retry>Try another code</button>';
+        }else{
+          var where=p.status==="instant"?"Paid instantly to Checking •••• 4821.":(p.day===key(NOW())?"In tonight's batch. Close the day before midnight "+TZL+" to have it at 6:00 am.":"Today is already closed, so it's in tomorrow's batch.");
+          $("#stR").innerHTML='<div class="box ok"><b>Paid · '+money(total(p))+'</b>'+esc(where)+' Receipt sent to '+esc(contactMask(p.contact))+'.</div><div class="sumrows">'+row(["Invoice",'<span class="code">'+p.txn+'</span>'])+row(["Code",'<span class="code">'+p.type+' '+mask(p.code)+'</span>'])+
+            (isAdmin()?row(["Payroad fee (sample)","−"+money(p.fee)])+row(["You receive","<b>"+money(net(p))+"</b>"]):"")+'</div>';
+          $("#wActs").innerHTML='<button class="btn" type="button" data-viewwo>View work order</button><button class="btn primary" type="button" data-close>Done</button>';
+        }
+        if($("#dPay").open){var f=$("#wActs .primary");if(f)f.focus()}
+      });
+      render();
+    }
+  });
+
+  /* ---------- payment detail ---------- */
+  var curPay=null;
+  function openDetail(p){
+    curPay=p; var admin=isAdmin(), w=woOf(p);
+    $("#dDet-h").textContent=p.carrier+" · "+money(total(p));
+    $("#dDetLead").innerHTML='<span class="code">'+p.txn+'</span> · '+esc(p.driver)+' · '+esc(locName(p.loc));
+    $("#dDetBox").innerHTML=p.status==="failed"?'<div class="box no"><b>Failed · '+esc(p.reason)+'</b>Ask the driver to confirm the code and amount with their carrier, then try again.</div>':"";
+    var rows=[["Status",chip(p)],["Work order",'<button class="rowbtn" style="color:var(--accent)" data-wo="'+w.id+'">'+esc(w.no)+'</button>'],["Driver",esc(p.driver)+" · "+esc(p.contact)]];
+    if(p.check) rows.push(["Check",'<span class="code">'+p.type+' #'+esc(p.check)+'</span>'+(p.src==="echeck"?' <span class="muted">(e-check)</span>':'')]);
+    if(p.code&&p.status!=="waiting") rows.push(["Express code",'<span class="code">'+mask(p.code)+'</span>']);
+    if(p.dl) rows.push(["Driver's license",esc(p.dl)+" · "+esc(p.dlState)]);
+    rows.push(["Invoice",money(p.amount)]);
+    if(p.conv) rows.push(["Money code fee (customer)",money(p.conv)]);
+    rows.push(["Total charged","<b>"+money(total(p))+"</b>"]);
+    if(admin&&p.paidAt){rows.push(["Payroad fee (sample)","−"+money(p.fee)]);rows.push(["Net to you","<b>"+money(net(p))+"</b>"])}
+    rows.push(["Clerk",esc(userName(p.clerk))]);
+    $("#dDetRows").innerHTML=rows.map(row).join("");
+    var tl=p.events.slice();
+    if(p.status==="approved") tl.push({at:null,text:"Day closes before midnight "+TZL+", deposit at 6:00 am",kind:"next"});
+    if(p.status==="scheduled") tl.push({at:p.depAt,text:"Deposit to Checking •••• 4821",kind:"next"});
+    $("#dDetTl").innerHTML=tl.map(function(x){return '<li class="'+x.kind+'"><b>'+esc(x.text)+'</b><small>'+(x.at?stamp(x.at):"Next")+'</small></li>'}).join("");
+    var a=['<button class="btn left" type="button" data-wo="'+w.id+'">Open work order</button>',ext(P.payUrl(p),p.paidAt?"Driver's receipt":"Driver's payment page")];
+    if(p.paidAt&&p.status!=="canceled") a.push('<button class="btn" type="button" data-resend>Resend receipt</button>');
+    if(["sent","waiting","failed"].indexOf(p.status)>-1) a.push('<button class="btn primary" type="button" data-charge>'+(p.status==="failed"?"Try again":"Charge")+'</button>');
+    a.push('<button class="btn" type="button" data-close>Close</button>');
+    $("#dDetActs").innerHTML=a.join("");
+    if(!$("#dDet").open) openDlg($("#dDet"));
+  }
+  $("#dDetActs").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b||!curPay) return;
+    if(b.hasAttribute("data-resend")){P.resendReceipt(curPay);render();openDetail(curPay);toast("Receipt resent to "+contactMask(curPay.contact)+".")}
+    if(b.hasAttribute("data-charge")){$("#dDet").close();openCharge(curPay)}
+  });
+
+  /* ---------- CSV ---------- */
+  function csv(rows){return rows.map(function(r){return r.map(function(v){v=v==null?"":String(v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(",")}).join("\r\n")}
+  function download(name,text){
+    var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"}));a.download=name;
+    document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},0);
+  }
+  function payRows(list){
+    var admin=isAdmin();
+    var head=["Transaction","Work order","Date","Time","Location","Clerk","Customer","Driver","Job","Code type","Check number","Express code (last 4)","Status","Reason","Invoice","Money code fee","Total charged"];
+    if(admin) head=head.concat(["Payroad fee","Net deposit","Deposit date"]);
+    return [head].concat(list.map(function(p){
+      var r=[p.txn,(woOf(p)||{}).no,key(p.created),time(p.created),locName(p.loc),userName(p.clerk),p.carrier,p.driver,p.job,p.type,p.check,
+        p.code&&p.status!=="waiting"?p.code.slice(-4):"",label(p),p.reason,p.amount.toFixed(2),p.conv.toFixed(2),total(p).toFixed(2)];
+      if(admin) r=r.concat([p.paidAt?p.fee.toFixed(2):"",p.paidAt?net(p).toFixed(2):"",p.depAt?key(p.depAt):""]);
+      return r;
+    }));
+  }
+  function depRows(list){
+    return [["Deposit date","Time","Type","Business day","Transaction","Work order","Customer","Driver","Code type","Check number","Invoice","Money code fee","Payroad fee","Net"]].concat(
+      [].concat.apply([],list.map(function(d){return depPays(d).map(function(p){
+        return [key(d.at),time(d.at),d.instant?"Instant":"Daily",d.day,p.txn,(woOf(p)||{}).no,p.carrier,p.driver,p.type,p.check,p.amount.toFixed(2),p.conv.toFixed(2),p.fee.toFixed(2),net(p).toFixed(2)];
+      })})));
+  }
+
+  /* ---------- deposits ---------- */
+  function niceStep(x){var p=Math.pow(10,Math.floor(Math.log10(x||1))),f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
+  function depFiltered(){return S.deposits.filter(function(d){var k=key(d.at);return (!S.df.from||k>=S.df.from)&&(!S.df.to||k<=S.df.to)}).sort(function(a,b){return b.at-a.at})}
+  function renderDeposits(){
+    var all=S.deposits.slice(), now=NOW(), days=[];
+    for(var i=12;i>=-1;i--) days.push(addDays(at(now,0),-i));
+    var data=days.map(function(d){
+      var ds=all.filter(function(x){return key(x.at)===key(d)});
+      return {d:d,amount:sum(ds,function(x){return depTotals(x).net}),count:sum(ds,function(x){return x.ids.length}),sched:ds.some(function(x){return x.status==="scheduled"})};
+    });
+    var max=Math.max.apply(null,data.map(function(x){return x.amount}).concat([1])), stp=niceStep(max/3), top=stp*Math.ceil(max/stp), g="";
+    for(var v=0;v<=top+0.01;v+=stp) g+='<div class="gl'+(v===0?" base":"")+'" style="bottom:calc('+(v/top*100)+'% * (194/220) + 26px)"><span class="num">'+(v>=1000?"$"+(v/1000).toFixed(v%1000?1:0)+"k":"$"+v)+'</span></div>';
+    $("#chart").innerHTML=g+'<div class="cols">'+data.map(function(x){
+      var tip=longDate(x.d)+"|"+(x.amount?money(x.amount)+" · "+x.count+" invoice"+(x.count===1?"":"s"):"No deposit")+(x.sched?" · scheduled 6:00 am":"");
+      return '<button type="button" class="col'+(x.sched?" sched":"")+'" data-tip="'+esc(tip)+'" aria-label="'+esc(tip.replace("|",": "))+'"><i style="height:'+(x.amount/top*100)+'%'+(x.amount?"":";min-height:0")+'"></i><b>'+shortDate(x.d)+'</b></button>';
+    }).join("")+'</div>';
+    $("#chartTotal").textContent=money(sum(data,function(x){return x.amount}))+" net";
+    $("#dFrom").value=S.df.from; $("#dTo").value=S.df.to;
+    var list=depFiltered();
+    $("#depTable").innerHTML=list.length?'<thead><tr><th>Available</th><th class="hide-s">From</th><th>Invoices</th><th class="r hide-s">Charged</th><th class="r hide-s">Fees</th><th class="r">Deposit</th><th>Status</th></tr></thead><tbody>'+
+      list.map(function(d){
+        var t=depTotals(d), c={status:d.instant?"instant":d.status,depAt:d.at};
+        return '<tr class="click" data-dep="'+d.id+'"><td class="num"><button class="rowbtn" data-dep="'+d.id+'">'+longDate(d.at)+'</button><span class="sub">'+time(d.at)+' · •••• 4821</span></td>'+
+          '<td class="hide-s">'+(d.instant?"Instant payout":"Day closed "+shortDate(fromKey(d.day))+'<span class="sub">at '+time(d.closedAt)+'</span>')+'</td>'+
+          '<td class="num">'+t.count+'</td><td class="r num hide-s">'+money(t.gross+t.conv)+'</td><td class="r num hide-s">−'+money(t.fees)+'</td>'+
+          '<td class="r num"><b>'+money(t.net)+'</b></td><td class="st">'+chip(c)+'</td></tr>';
+      }).join("")+'</tbody>':'<tbody><tr><td><p class="empty">No deposits in this range.</p></td></tr></tbody>';
+  }
+  var curDep=null;
+  function openDeposit(id){
+    var d=S.deposits.filter(function(x){return x.id===id})[0]; if(!d) return; curDep=d;
+    var t=depTotals(d), ps=depPays(d);
+    $("#dDep-h").textContent=(d.instant?"Instant payout · ":"Deposit · ")+stamp(d.at);
+    $("#dDepLead").textContent=d.instant?"Paid instantly. To Checking •••• 4821.":"From the day closed "+longDate(fromKey(d.day))+" at "+time(d.closedAt)+". To Checking •••• 4821.";
+    $("#dDepRows").innerHTML=row(["Invoices ("+t.count+")",money(t.gross)])+(t.conv?row(["Money code fees (customers)",money(t.conv)]):"")+row(["Payroad fee (sample)","−"+money(t.fees)])+row(["Deposit","<b>"+money(t.net)+"</b>"])+row(["Status",chip({status:d.instant?"instant":d.status,depAt:d.at})]);
+    $("#dDepTable").innerHTML='<thead><tr><th>Invoice</th><th class="hide-s">Check</th><th class="r hide-s">Charged</th><th class="r hide-s">Fee</th><th class="r">Net</th></tr></thead><tbody>'+
+      ps.map(function(p){return '<tr><td>'+esc(p.carrier)+'<span class="sub">'+p.txn+' · '+esc((woOf(p)||{}).no)+' · '+esc(p.driver)+'</span></td><td class="hide-s"><span class="code">'+p.type+' #'+p.check.slice(-6)+'</span></td><td class="r num hide-s">'+money(total(p))+'</td><td class="r num hide-s">−'+money(p.fee)+'</td><td class="r num"><b>'+money(net(p))+'</b></td></tr>'}).join("")+
+      '</tbody><tfoot><tr><td>Total</td><td class="hide-s"></td><td class="r num hide-s">'+money(t.gross+t.conv)+'</td><td class="r num hide-s">−'+money(t.fees)+'</td><td class="r num">'+money(t.net)+'</td></tr></tfoot>';
+    openDlg($("#dDep"));
+  }
+  $("#dDepCsv").addEventListener("click",function(){if(curDep)download("payroad-deposit-"+key(curDep.at)+".csv",csv(depRows([curDep])))});
+
+  /* chart tooltip */
+  function showTip(el){
+    var t=$("#tip"), parts=el.getAttribute("data-tip").split("|"), ir=el.querySelector("i").getBoundingClientRect(), cr=el.getBoundingClientRect();
+    t.innerHTML="<b>"+esc(parts[0])+"</b><br>"+esc(parts[1]); t.hidden=false;
+    var x=cr.left+cr.width/2+window.scrollX, y=Math.min(ir.top,cr.bottom-10)+window.scrollY, w=t.offsetWidth;
+    x=Math.max(w/2+8,Math.min(document.documentElement.clientWidth-w/2-8,x));
+    t.style.left=x+"px"; t.style.top=y+"px";
+  }
+  document.addEventListener("mouseover",function(e){var c=e.target.closest&&e.target.closest(".col");if(c)showTip(c)});
+  document.addEventListener("mouseout",function(e){var c=e.target.closest&&e.target.closest(".col");if(c&&!c.contains(e.relatedTarget))$("#tip").hidden=true});
+  document.addEventListener("focusin",function(e){if(e.target.classList&&e.target.classList.contains("col"))showTip(e.target)});
+  document.addEventListener("focusout",function(e){if(e.target.classList&&e.target.classList.contains("col"))$("#tip").hidden=true});
+
+  /* ---------- settings ---------- */
+  function renderSettings(){
+    $("#planBasic").classList.toggle("on",!S.pro); $("#planPro").classList.toggle("on",S.pro);
+    $("#tagBasic").hidden=S.pro; $("#tagPro").hidden=!S.pro; $("#proToggle").checked=S.pro; $("#clerkToggle").checked=S.clerk;
+    $("#feeRate").value=S.feeRate; $("#convOn").checked=S.convOn; $("#convRate").value=S.convRate; $("#convBox").hidden=!S.convOn;
+    if(document.activeElement!==$("#terms")) $("#terms").value=S.terms;
+    $("#rateTable").innerHTML='<thead><tr><th>Item</th><th class="r">Price</th><th>Per</th></tr></thead><tbody>'+RATES.map(function(r,i){return '<tr><td>'+esc(r.d)+'</td><td class="r"><input class="ratein num" type="number" step="0.01" min="0" data-ri="'+i+'" value="'+r.u+'" aria-label="Price for '+esc(r.d)+'"></td><td>'+r.per+'</td></tr>'}).join("")+'</tbody>';
+    $("#locTable").innerHTML='<thead><tr><th>Location</th><th>Time zone</th><th>Day closes</th></tr></thead><tbody>'+LOCS.map(function(l){return '<tr><td>'+esc(l.name)+'</td><td>'+esc(l.tz)+'</td><td>Midnight '+TZL+'</td></tr>'}).join("")+'</tbody>';
+    $("#userTable").innerHTML='<thead><tr><th>Name</th><th>Role</th></tr></thead><tbody>'+USERS.map(function(u){return '<tr><td>'+esc(u.name)+(u.id===me().id?' <span class="muted">(you)</span>':'')+'</td><td>'+u.role+'</td></tr>'}).join("")+'</tbody>';
+  }
+  $("#terms").addEventListener("input",function(){S.terms=this.value;P.save()});
+  $("#rateTable").addEventListener("change",function(e){var i=e.target.getAttribute("data-ri");if(i==null)return;var v=parseFloat(e.target.value);if(isFinite(v)&&v>=0)RATES[+i].u=r2(v);P.save();toast(RATES[+i].d+" set to "+money(RATES[+i].u)+".")});
+  $("#proToggle").addEventListener("change",function(){S.pro=this.checked;render();toast(S.pro?"Previewing as a Trusted Shop: paid invoices go out instantly.":"Back to Payroad: deposits at 6:00 am after you close.")});
+  $("#clerkToggle").addEventListener("change",function(){S.clerk=this.checked;location.hash="#today";render();toast("Previewing as a clerk. Use \"Exit clerk preview\" in the menu to go back.")});
+  $("#exitClerk").addEventListener("click",function(){S.clerk=false;render();toast("Back to the admin view.")});
+  $("#feeRate").addEventListener("change",function(){var v=parseFloat(this.value);if(isFinite(v)&&v>=0&&v<=20)S.feeRate=v;toast("Sample Payroad fee set to "+S.feeRate+"% for new payments.");render()});
+  $("#convOn").addEventListener("change",function(){S.convOn=this.checked;render()});
+  $("#convRate").addEventListener("change",function(){var v=parseFloat(this.value);if(isFinite(v)&&v>=0&&v<=10)S.convRate=v;render()});
+  $("#addUser").addEventListener("submit",function(e){
+    e.preventDefault(); var n=$("#uName").value.trim(); if(!n){$("#uName").setAttribute("aria-invalid","true");$("#uName").focus();return}
+    USERS.push({id:"u"+Date.now(),name:n,role:$("#uRole").value}); $("#uName").value=""; $("#uName").removeAttribute("aria-invalid");
+    render(); toast(n+" added. Prototype: in the real app they'd get an email invite.");
+  });
+  $("#reset").addEventListener("click",function(){P.reset();sync();render();toast("Sample data reset.")});
+  // Prototype: signing out forgets everything done in the demo, so the next sign in starts from fresh sample data.
+  $("#signOut").addEventListener("click",function(e){e.preventDefault();P.clear();location.href="login.html"});
+
+  /* ---------- routing ---------- */
+  var VIEWS=["today","workorders","payments","customers","deposits","settings"];
+  function view(){var v=location.hash.slice(1);return VIEWS.indexOf(v)>-1?v:"today"}
+  function render(){
+    var v=view(); if(!isAdmin()&&(v==="deposits"||v==="settings")) v="today";
+    renderBar();
+    $$("[data-v]").forEach(function(s){s.hidden=s.getAttribute("data-v")!==v});
+    $$(".nav a[data-view]").forEach(function(a){if(a.getAttribute("data-view")===v)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
+    if(v==="today") renderToday();
+    if(v==="workorders") renderWos();
+    if(v==="payments") renderPayments();
+    if(v==="customers") renderCustomers();
+    if(v==="deposits") renderDeposits();
+    if(v==="settings") renderSettings();
+    P.save(); snap();
+  }
+  window.addEventListener("hashchange",function(){render();setMenu(false);window.scrollTo(0,0)});
+
+  /* When the driver signs or pays in another tab, refresh and say what happened. */
+  var lastSnap={};
+  function snap(){lastSnap={};S.wos.forEach(function(w){lastSnap["w"+w.id]=w.status});S.payments.forEach(function(p){lastSnap["p"+p.id]=p.status})}
+  P.onExternalChange(function(){
+    sync(); var news=[];
+    S.wos.forEach(function(w){var o=lastSnap["w"+w.id];if(o==="sent"&&w.status==="signed")news.push(w.no+" signed by "+w.signer+". Work can start.")});
+    S.payments.forEach(function(p){var o=lastSnap["p"+p.id];if(o!==p.status){if(p.paidAt&&!(o&&/approved|instant|scheduled|deposited/.test(o)))news.push((woOf(p)||{}).no+" paid by the driver: "+money(total(p))+".");else if(p.status==="failed"&&o!=="failed")news.push((woOf(p)||{}).no+": the driver's code failed ("+p.reason+").")}});
+    render();
+    if($("#dWoD").open&&curWo){curWo=wo(curWo.id);openWo(curWo)}
+    if($("#dDet").open&&curPay){curPay=pay(curPay.id);openDetail(curPay)}
+    if(W.p) W.p=pay(W.p.id)||W.p;
+    if(news.length) toast(news[0]);
+  });
+
+  /* ---------- dialogs ---------- */
+  var lastFocus=null;
+  function openDlg(d){if(!$("dialog[open]"))lastFocus=document.activeElement;if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
+  $$("dialog").forEach(function(d){
+    d.addEventListener("click",function(e){if(e.target===d||e.target.closest("[data-close]"))d.close()});
+    d.addEventListener("close",function(){if(!$("dialog[open]")&&lastFocus&&document.contains(lastFocus))lastFocus.focus()});
+  });
+
+  /* ---------- global clicks ---------- */
+  document.addEventListener("click",function(e){
+    if(!e.target.closest) return;
+    var cp=e.target.closest("[data-copy]");
+    if(cp){var u=abs(cp.getAttribute("data-copy"));try{navigator.clipboard.writeText(u).then(function(){toast("Link copied: "+u)},function(){toast(u)})}catch(x){toast(u)}return}
+    var f=e.target.closest("[data-flow]");
+    if(f){var i=+f.getAttribute("data-flow");if(i===0)S.wf.status="sent";if(i===1)S.wf.status="signed";if(i===3)S.wf.status="failed";if(i===2)S.pf.status="action";if(i===4)S.pf.status="all";return}
+    var ow=e.target.closest("[data-wo]");
+    if(ow&&!e.target.closest("#dWoDActs")){var x=wo(+ow.getAttribute("data-wo"));if(x){$$("dialog[open]").forEach(function(d){if(d.id!=="dWoD")d.close()});openWo(x)}return}
+    var oc=e.target.closest("[data-cust]");
+    if(oc){var c=cust(oc.getAttribute("data-cust"));if(c){$$("dialog[open]").forEach(function(d){d.close()});openCustomer(c)}return}
+    if(e.target.closest("dialog")) return;
+    var dr=e.target.closest("[data-dep]"); if(dr){openDeposit(dr.getAttribute("data-dep"));return}
+    var rp=e.target.closest("[data-pay]"); if(rp){var p=pay(+rp.getAttribute("data-pay"));if(p)openDetail(p)}
+  });
+
+  // filters
+  $("#woSeg").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;S.wf.status=b.getAttribute("data-f");renderWos();var nb=$('#woSeg [data-f="'+S.wf.status+'"]');if(nb)nb.focus()});
+  $("#wq").addEventListener("input",function(){S.wf.q=this.value;renderWos()});
+  $("#wFrom").addEventListener("change",function(){S.wf.from=this.value;renderWos()});
+  $("#wTo").addEventListener("change",function(){S.wf.to=this.value;renderWos()});
+  $("#wLocF").addEventListener("change",function(){S.wf.loc=this.value;renderWos()});
+  $("#seg").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;S.pf.status=b.getAttribute("data-f");renderPayments();var nb=$('#seg [data-f="'+S.pf.status+'"]');if(nb)nb.focus()});
+  $("#q").addEventListener("input",function(){S.pf.q=this.value;renderPayments()});
+  $("#pFrom").addEventListener("change",function(){S.pf.from=this.value;renderPayments()});
+  $("#pTo").addEventListener("change",function(){S.pf.to=this.value;renderPayments()});
+  $("#pLoc").addEventListener("change",function(){S.pf.loc=this.value;renderPayments()});
+  $("#pCsv").addEventListener("click",function(){var l=filtered();download("payroad-payments-"+key(NOW())+".csv",csv(payRows(l)));toast(l.length+" payments exported.")});
+  $("#dFrom").addEventListener("change",function(){S.df.from=this.value;renderDeposits()});
+  $("#dTo").addEventListener("change",function(){S.df.to=this.value;renderDeposits()});
+  $("#dCsv").addEventListener("click",function(){var l=depFiltered();download("payroad-deposits-"+key(NOW())+".csv",csv(depRows(l)));toast(l.length+" deposits exported.")});
+
+  /* ---------- close the day ---------- */
+  $("#closeBtn").addEventListener("click",function(){
+    var b=openBatch(), now=NOW(), w=payAction().filter(function(p){return key(p.created)===key(now)});
+    $("#closeSum").innerHTML=row(["Paid invoices",b.length])+row(["Charged",money(sum(b,total))])+
+      (isAdmin()?row(["Payroad fee (sample)","−"+money(sum(b,function(p){return p.fee}))])+row(["Deposit","<b>"+money(sum(b,net))+"</b>"]):"")+
+      row(["Available",longDate(addDays(now,1))+", 6:00 am "+TZL])+row(["To","Checking •••• 4821"]);
+    $("#closeWarn").hidden=!w.length;
+    $("#closeWarn").innerHTML=w.length?"<b>"+w.length+" invoice"+(w.length>1?"s are":" is")+" still waiting for payment.</b>They aren't in this deposit. If they're paid after closing, they go into tomorrow's batch.":"";
+    openDlg($("#dClose")); $("#closeGo").focus();
+  });
+  $("#closeGo").addEventListener("click",function(){
+    var b=openBatch(), t=sum(b,net); P.closeBatch(b,NOW()); $("#dClose").close(); render();
+    toast("Day closed. "+(isAdmin()?money(t):b.length+" invoices")+" available tomorrow at 6:00 am.");
+  });
+
+  /* ---------- mobile menu, toast ---------- */
+  function setMenu(on){$("#app").classList.toggle("open",on);$("#menu").setAttribute("aria-expanded",on)}
+  $("#menu").addEventListener("click",function(){setMenu(!$("#app").classList.contains("open"))});
+  $("#scrim").addEventListener("click",function(){setMenu(false)});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")setMenu(false)});
+  var tt;
+  function toast(m){var t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(function(){t.hidden=true},4200)}
+
+  sync(); render();
+  setInterval(renderBar,30000);
+})();
+</script>
+</body>
+</html>

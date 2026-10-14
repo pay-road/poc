@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign work order · Payroad</title>
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="driver.css">
+</head>
+<body>
+<!-- The page the driver opens from the "Complete authorization" text or email (sign.html?wo=578476).
+     With &device=1 it's the same page opened on the shop's device at the counter or roadside. -->
+<div class="demo" id="demo">Demo: this is the page the driver opens from the text or email. Sample data. <a href="inbox.html">Driver's inbox</a></div>
+<div class="wrap">
+  <header class="hd" id="hd"></header>
+  <main class="body" id="main"></main>
+</div>
+<script src="payroad-mock.js"></script>
+<script>
+(function(){
+  "use strict";
+  var P=window.PR, esc=P.esc, $=function(s){return document.querySelector(s)};
+  var q=new URLSearchParams(location.search), no=q.get("wo")||"", device=q.get("device")==="1";
+  if(device) $("#demo").innerHTML="Demo: signing on the shop's device. Hand it to the driver. <a href=\"dashboard.html#workorders\">Back to the dashboard</a>";
+
+  function head(w,signed){
+    $("#hd").innerHTML='<b>Work Order '+esc(w?w.no.replace("WO-",""):"")+(w?' · '+esc(P.cust(w.cust).name):'')+'</b>'+
+      '<span class="st"><i class="done">✓</i>Create<span class="sep"></span><i class="'+(signed?"done":"now")+'">'+(signed?"✓":"")+'</i>Approve</span>';
+  }
+  function render(){
+    var w=P.woByNo(no);
+    if(!w){head(null,false);$("#main").innerHTML='<h1>Work order not found</h1><p class="muted">The link may be old. Ask the shop to send it again.</p><p class="small muted">Demo: sample data is rebuilt every day. Open a fresh link from the dashboard or the <a href="inbox.html">driver\'s inbox</a>.</p>';return}
+    document.title=w.no+" · Sign work order";
+    var c=P.cust(w.cust)||{};
+    if(w.status==="canceled"){head(w,false);$("#main").innerHTML='<h1>This work order was canceled</h1><p class="muted">Contact '+esc(P.SHOP)+' if you have questions.</p>';return}
+    if(w.status!=="sent"){
+      head(w,true);
+      $("#main").innerHTML='<div class="box ok"><b>Work order approved</b>Signed by '+esc(w.signer)+', '+P.stamp(w.signedAt)+'. '+esc(P.SHOP)+' can start the work.</div>'+
+        '<div class="card"><div class="row"><span>Payer</span><span>'+esc(c.name)+'</span></div><div class="row"><span>Driver</span><span>'+esc(w.driver)+'</span></div><div class="row"><span>Work</span><span>'+esc(w.desc)+'</span></div>'+(w.unit?'<div class="row"><span>Unit</span><span>'+esc(w.unit)+'</span></div>':'')+'</div>'+
+        '<p class="small muted" style="margin-top:16px">Signature</p><span class="sigimg"><img src="'+w.sig+'" alt="Signature of '+esc(w.signer)+'"></span>'+
+        (device?'<a class="btn ghost" href="dashboard.html#workorders">Done · back to the dashboard</a>':'<p class="small muted" style="margin-top:16px">A copy was sent to '+esc(P.contactMask(w.dr))+'. You will get the invoice by text or email when the work is done.</p>')+
+        '<p class="foot">Powered by <b>Payroad</b></p>';
+      return;
+    }
+    head(w,false);
+    $("#main").innerHTML=
+      '<form id="f" novalidate><h1>Work order · '+esc(P.SHOP)+'</h1>'+
+      '<label for="pn">Payer name</label><input id="pn" readonly value="'+esc(c.name)+'">'+
+      '<label for="pc">Payer contact name</label><input id="pc" placeholder="Point of contact name" value="'+esc(w.pc)+'">'+
+      '<label for="pr">Payer email or phone</label><input id="pr" placeholder="Point of contact\'s email address or phone number" value="'+esc(w.pr)+'">'+
+      '<label for="dn">Driver name</label><input id="dn" autocomplete="name" value="'+esc(w.driver)+'" aria-describedby="dnE"><p class="err" id="dnE"></p>'+
+      '<label for="dr">Mobile phone number or email</label><input id="dr" value="'+esc(w.dr)+'">'+
+      '<div class="card"><div class="row"><span>Work</span><span>'+esc(w.desc)+'</span></div>'+(w.unit?'<div class="row"><span>Unit</span><span>'+esc(w.unit)+'</span></div>':'')+
+      '<div class="row"><span>Location</span><span>'+esc(P.locName(w.loc))+'</span></div><div class="row"><span>Work order</span><span class="code">'+w.no+'</span></div></div>'+
+      '<div class="terms">'+esc(P.db.S.terms)+'</div>'+
+      '<div class="sig"><canvas id="pad" width="760" height="300" aria-label="Signature pad. Sign with your finger or mouse." role="img"></canvas><div class="line"></div><div class="lbl">Please sign here</div><button type="button" class="x" id="clear" aria-label="Clear signature">×</button></div>'+
+      '<p class="err" id="sigE"></p>'+
+      '<button class="btn sign" type="submit">Approve work order</button>'+
+      '<p class="foot">Powered by <b>Payroad</b></p></form>';
+    var pad=sigPad($("#pad"));
+    $("#clear").addEventListener("click",pad.clear);
+    $("#f").addEventListener("submit",function(e){
+      e.preventDefault();
+      var w2=P.woByNo(no); if(!w2||w2.status!=="sent"){render();return}
+      var dn=$("#dn").value.trim();
+      $("#dnE").textContent=dn?"":"Enter your name."; $("#dn").setAttribute("aria-invalid",dn?"false":"true");
+      $("#sigE").textContent=pad.has()?"":"Please sign to approve the work order.";
+      if(!dn){$("#dn").focus();return} if(!pad.has()) return;
+      w2.pc=$("#pc").value.trim(); w2.pr=$("#pr").value.trim(); w2.dr=$("#dr").value.trim()||w2.dr;
+      var now=P.NOW();
+      P.signWo(w2,now,dn,pad.data(),device?"device":"link");
+      P.msg("signed",w2.dr,{wo:w2.id},now);
+      P.save(); render(); window.scrollTo(0,0);
+    });
+  }
+  function sigPad(cv){
+    var ctx=cv.getContext("2d"), drawing=false, has=false;
+    ctx.lineWidth=4; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="#111";
+    function pos(e){var r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]}
+    cv.addEventListener("pointerdown",function(e){drawing=true;try{cv.setPointerCapture(e.pointerId)}catch(x){}var p=pos(e);ctx.beginPath();ctx.moveTo(p[0],p[1]);e.preventDefault()});
+    cv.addEventListener("pointermove",function(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p[0],p[1]);ctx.stroke();has=true;$("#sigE").textContent=""});
+    ["pointerup","pointercancel","pointerleave"].forEach(function(t){cv.addEventListener(t,function(){drawing=false})});
+    return {has:function(){return has},clear:function(){ctx.clearRect(0,0,cv.width,cv.height);has=false},data:function(){return cv.toDataURL("image/png")}};
+  }
+  // If the shop cancels or the work order is signed elsewhere, show it. Don't redraw while the driver is filling the form.
+  var lastStatus=(P.woByNo(no)||{}).status;
+  P.onExternalChange(function(){var w=P.woByNo(no),s=w&&w.status;if(s!==lastStatus){lastStatus=s;render()}});
+  render();
+})();
+</script>
+</body>
+</html>

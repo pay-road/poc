@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice · Payroad</title>
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="driver.css">
+</head>
+<body>
+<!-- The page the driver opens from the "View invoice" text or email (pay.html?t=10472).
+     The driver picks EFS or Comchek, gets a check number, asks their carrier for the express code and pays.
+     After paying, the same link shows the receipt. -->
+<div class="demo">Demo: this is the invoice page the driver opens from the text or email. Sample data. <a href="inbox.html">Driver's inbox</a></div>
+<div class="wrap">
+  <main class="body" id="main"></main>
+</div>
+<script src="payroad-mock.js"></script>
+<script>
+(function(){
+  "use strict";
+  var P=window.PR, esc=P.esc, money=P.money, $=function(s){return document.querySelector(s)};
+  var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+  var t=new URLSearchParams(location.search).get("t")||"", busy=false;
+
+  function initials(){return P.SHOP.split(" ").map(function(x){return x[0]}).join("").replace(/[^A-Z]/g,"").slice(0,2)}
+  function render(){
+    var p=P.payByTxn(t), w=P.woOf(p);
+    if(!p||!w){$("#main").innerHTML='<h1>Invoice not found</h1><p class="muted">The link may be old. Ask the shop to send it again.</p><p class="small muted">Demo: sample data is rebuilt every day. Open a fresh link from the dashboard or the <a href="inbox.html">driver\'s inbox</a>.</p>';return}
+    document.title="Invoice #"+p.txn.replace("PR-","")+" · "+P.SHOP;
+    var paid=p.paidAt&&p.status!=="canceled";
+    var head='<div class="logo" aria-hidden="true">'+esc(initials())+'</div>'+
+      '<p class="center" style="margin:0 0 16px">'+(paid?'Receipt from':'Your invoice for')+' <b>'+esc(P.SHOP)+'</b>'+(paid?'.':' is ready.')+'</p>'+
+      '<div class="row" style="font-size:19px;padding:0"><b>Transaction</b><b class="num">#'+p.txn.replace("PR-","")+'</b></div>'+
+      '<p class="small muted" style="margin:4px 0 0">'+esc(w.no)+' · '+esc(w.desc)+(w.unit?' · '+esc(w.unit):'')+'</p>'+
+      '<div class="card">'+w.lines.map(function(l){return '<div class="row"><span>'+esc(l.d)+(l.q!==1?' × '+l.q:'')+'</span><span class="num">'+money(P.r2(l.q*l.u))+'</span></div>'}).join("")+
+      '<div class="row"><span>Subtotal</span><span class="num">'+money(p.amount)+'</span></div>'+(p.conv?'<div class="row"><span>Money code fee ('+P.db.S.convRate+'%)</span><span class="num">'+money(p.conv)+'</span></div>':'')+
+      '<div class="row t"><span>Total with express code</span><span class="num">'+money(P.total(p))+'</span></div></div>';
+    if(p.status==="canceled"){$("#main").innerHTML=head+'<div class="box no"><b>This invoice was canceled.</b>Nothing was charged.</div>'+foot();return}
+    if(paid){$("#main").innerHTML=head+'<div class="box ok"><b>Paid · '+money(P.total(p))+'</b>'+esc(p.type)+' express code '+P.mask(p.code)+', '+P.stamp(p.paidAt)+'. Keep this page as your receipt.</div>'+
+      '<div class="card"><div class="row"><span>Paid to</span><span>'+esc(P.SHOP)+'</span></div><div class="row"><span>Payer</span><span>'+esc(p.carrier)+'</span></div><div class="row"><span>Driver</span><span>'+esc(p.driver)+'</span></div><div class="row"><span>Check</span><span class="code">'+esc(p.type)+' #'+esc(p.check)+'</span></div></div>'+foot();return}
+    if(p.status==="verifying"){$("#main").innerHTML=head+'<div class="box wait"><span class="spin" aria-hidden="true"></span>Charging '+money(P.total(p))+'…</div>'+foot();return}
+    $("#main").innerHTML=head+
+      '<h1 style="font-size:19px;margin:24px 0 0">Pay with an express code</h1>'+
+      '<p class="small muted" style="margin:4px 0 0">Choose the type of code your carrier or broker uses.</p>'+
+      '<div class="opts" role="group" aria-label="Code type"><button type="button" data-t="EFS" aria-pressed="'+(p.type==="EFS")+'">EFS</button><button type="button" data-t="Comchek" aria-pressed="'+(p.type==="Comchek")+'">Comchek</button></div>'+
+      '<div id="payB"></div>'+
+      '<p class="small muted" style="margin-top:18px">Credit card, fuel card and Apple Pay: <span class="fill">[FILL IN: later phase]</span></p>'+foot();
+    $$("[data-t]").forEach(function(b){b.addEventListener("click",function(){
+      var p2=P.payByTxn(t), type=b.getAttribute("data-t");
+      if(p2.type!==type){P.setCheck(p2,type,"echeck",P.randDigits(),P.NOW(),"driver");P.save()}
+      render(); var f=document.getElementById("code"); if(f) f.focus();
+    })});
+    body(p);
+  }
+  function foot(){return '<p class="foot">Powered by <b>Payroad</b></p>'}
+  function body(p){
+    if(!p.type){$("#payB").innerHTML="";return}
+    $("#payB").innerHTML=(p.status==="failed"?'<div class="box no"><b>Not paid · '+esc(p.reason)+'</b>Check the code and the amount with your carrier or broker, then try again.</div>':'')+
+      '<div class="box"><b>'+esc(p.type)+' check #'+esc(p.check)+'</b>Ask your carrier or broker for an express code for this check, for <b style="display:inline">'+money(P.total(p))+'</b>. <span class="fill">[FILL IN: e-check depends on Payroad\'s agreement with EFS and Comdata]</span></div>'+
+      '<form id="pf" novalidate><label for="code">Express code</label><input id="code" class="code" inputmode="numeric" autocomplete="off" spellcheck="false" aria-describedby="codeE"><p class="err" id="codeE"></p>'+
+      '<label for="dl">Driver\'s license #</label><input id="dl" autocomplete="off" aria-describedby="dlE"><p class="err" id="dlE"></p>'+
+      '<label for="st">License state</label><select id="st">'+P.STATES.map(function(s){return '<option'+(s===(p.dlState||"TX")?" selected":"")+'>'+s+'</option>'}).join("")+'</select>'+
+      '<button class="btn pay" type="submit">Pay '+money(P.total(p))+'</button></form>';
+    $("#pf").addEventListener("submit",function(e){
+      e.preventDefault();
+      var code=$("#code").value.replace(/[\s-]/g,""), dl=$("#dl").value.trim();
+      var ce=!code?"Enter the express code.":(!/^\d{8,12}$/.test(code)?"Express codes are 8 to 12 digits. Check for a missing or extra digit.":"");
+      $("#codeE").textContent=ce; $("#code").setAttribute("aria-invalid",ce?"true":"false");
+      $("#dlE").textContent=dl?"":"Enter your driver's license number."; $("#dl").setAttribute("aria-invalid",dl?"false":"true");
+      if(ce){$("#code").focus();return} if(!dl){$("#dl").focus();return}
+      busy=true;
+      P.chargeCode(P.payByTxn(t),code,dl,$("#st").value,"driver",function(){busy=false;render();window.scrollTo(0,0)});
+      render();
+    });
+  }
+  // Refresh when the shop changes this invoice (for example, cancels it or charges it at the counter).
+  function sig(){var p=P.payByTxn(t);return p?[p.status,p.type,p.check].join("|"):""}
+  var last=sig();
+  P.onExternalChange(function(){var s=sig();if(s!==last&&!busy){last=s;render()}});
+  render();
+})();
+</script>
+</body>
+</html>

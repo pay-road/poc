@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Driver's inbox · Payroad demo</title>
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="driver.css">
+<style>
+/* Demo only: the texts and emails Payroad would send to drivers, so the flow can be shown without a phone. */
+.tools{display:flex;gap:10px;align-items:flex-end;margin-bottom:6px}
+.tools label{margin:0 0 6px;font-size:13px}
+.tools div{flex:1}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.m{background:#fff;border:1px solid #e1e1dc;border-radius:14px;padding:14px}
+.m .meta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted)}
+.m .meta b{color:var(--ink)}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:6px;padding:2px 6px;margin-right:6px;background:#EFEFEB;color:#555}
+.tag.sms{background:#E3F2EA;color:#1E7A4C}
+.tag.email{background:#E6ECFB;color:#16348F}
+.bubble{background:#E9E9EB;border-radius:18px 18px 18px 6px;padding:10px 14px;margin-top:10px;font-size:15px}
+.mail{border-top:1px solid #eee;margin-top:10px;padding-top:12px}
+.mail .brand{background:#232323;color:#F5C400;font-weight:800;text-align:center;padding:12px;border-radius:8px;font-size:18px}
+.mail p{margin:12px 0 0;text-align:center}
+.mail .btn{margin-top:12px}
+.bubble a{color:#1d4ed8;word-break:break-all}
+.state{font-size:13px;margin-top:8px;color:var(--muted)}
+.state b{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="demo">Demo: the texts and emails Payroad would send to drivers. Nothing is actually sent. <a href="dashboard.html">Back to the dashboard</a></div>
+<div class="wrap">
+  <header class="hd"><b>Driver's inbox</b><small>Newest first · updates as the shop sends things</small></header>
+  <main class="body">
+    <div class="tools"><div><label for="to">Messages to</label><select id="to"></select></div></div>
+    <ul class="list" id="list" aria-live="polite"></ul>
+  </main>
+</div>
+<script src="payroad-mock.js"></script>
+<script>
+(function(){
+  "use strict";
+  var P=window.PR, esc=P.esc, money=P.money, $=function(s){return document.querySelector(s)};
+  var sel="all";
+  function rel(d){return (P.key(d)===P.key(P.NOW())?"Today":P.dayWord(d).replace(/^./,function(c){return c.toUpperCase()}))+", "+P.time(d)}
+  function content(m){
+    var w=m.wo?P.wo(m.wo):null, p=m.pay?P.pay(m.pay):null, shop=esc(P.SHOP), url, btn, text, subj, state="";
+    if(m.kind==="wo"){
+      subj="Work Order Authorization"; url=P.signUrl(w); btn="Complete Authorization";
+      text="Your work order authorization for <b>"+shop+"</b> requires a signature. Please follow the link to complete the authorization.";
+      state=w.status==="sent"?"Waiting for signature":(w.status==="canceled"?"Canceled":"<b>✓ Signed</b> "+P.stamp(w.signedAt));
+    }else if(m.kind==="signed"){
+      subj="Your signed work order"; url=P.signUrl(w); btn="View work order";
+      text="Copy of your signed work order "+esc(w.no)+" for <b>"+shop+"</b>.";
+    }else if(m.kind==="invoice"){
+      subj="Your invoice is ready"; url=P.payUrl(p); btn="View invoice";
+      text="Your invoice for <b>"+shop+"</b> is ready. Transaction #"+p.txn.replace("PR-","")+". Total with express code: <b>"+money(P.total(p))+"</b>.";
+      state=p.paidAt&&p.status!=="canceled"?"<b>✓ Paid</b> "+P.stamp(p.paidAt):(p.status==="canceled"?"Canceled":P.label(p));
+    }else if(m.kind==="echeck"){
+      subj="Your check number"; url=P.payUrl(p); btn="Pay invoice";
+      text="Your "+esc(p.type)+" check number for <b>"+shop+"</b> is <b>#"+esc(p.check)+"</b>. Ask your carrier or broker for an express code for this check, for <b>"+money(P.total(p))+"</b>.";
+    }else{
+      subj="Receipt"; url=P.payUrl(p); btn="View receipt";
+      text="Receipt: you paid <b>"+money(P.total(p))+"</b> to <b>"+shop+"</b> with "+esc(p.type)+" express code "+P.mask(p.code)+".";
+    }
+    var body=m.ch==="sms"
+      ?'<div class="bubble">'+text+' <a href="'+url+'">'+esc(new URL(url,location.href).href)+'</a></div>'
+      :'<div class="mail"><div class="brand">'+shop+'</div><p>'+text+'</p><a class="btn sign" href="'+url+'">'+btn+'</a></div>';
+    return '<li class="m"><div class="meta"><span><span class="tag '+m.ch+'">'+(m.ch==="sms"?"Text":"Email")+'</span><b>'+(m.ch==="sms"?esc(m.to):esc(subj))+'</b></span><span>'+rel(m.at)+'</span></div>'+
+      (m.ch==="email"?'<div class="small muted" style="margin-top:2px">To '+esc(m.to)+' · from '+shop+' via Payroad</div>':'<div class="small muted" style="margin-top:2px">From '+shop+' via Payroad</div>')+
+      body+(state?'<div class="state">'+state+'</div>':'')+'</li>';
+  }
+  function render(){
+    var all=P.db.S.msgs.slice().sort(function(a,b){return b.at-a.at});
+    var tos=[];all.forEach(function(m){if(tos.indexOf(m.to)<0)tos.push(m.to)});
+    if(sel!=="all"&&tos.indexOf(sel)<0) sel="all";
+    $("#to").innerHTML='<option value="all">Everyone ('+all.length+')</option>'+tos.map(function(t){return '<option value="'+esc(t)+'"'+(t===sel?" selected":"")+'>'+esc(t)+'</option>'}).join("");
+    var l=all.filter(function(m){return sel==="all"||m.to===sel}).slice(0,40);
+    $("#list").innerHTML=l.length?l.map(content).join(""):'<li class="muted">No messages yet. Create a work order in the dashboard and send it to the driver.</li>';
+  }
+  $("#to").addEventListener("change",function(){sel=this.value;render()});
+  P.onExternalChange(render);
+  render();
+})();
+</script>
+</body>
+</html>

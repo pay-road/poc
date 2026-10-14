@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payroad: money code payments for road service shops</title>
+<meta name="description" content="Payroad processes money code payments for road service shops: Comchek, EFS and more. Close your day before midnight and your money is available at 6:00 am. Trusted Shops get paid instantly.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230A3A2F'/%3E%3Cg transform='translate(11 20)'%3E%3Cpolygon points='21.1,0 29.9,0 16,23.5 0,23.5' fill='%23F2EFE6'/%3E%3Cpolygon points='34.7,0 43.5,0 37.1,23.5 21.4,23.5' fill='%23B7F34A'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F2; --surface:#FFFFFF; --ink:#0E1A17; --muted:#3F524C;
+  --primary:#0D5C4B; --on-primary:#FFFFFF; --lime:#B7F34A; --on-lime:#0E1A17;
+  --border:#D3DDD7; --tint:#E4EFE9; --focus:#0D5C4B; --lane:#9DB6AA;
+  --btn-bg:#0D5C4B; --btn-fg:#FFFFFF; --btn-hover-bg:#B7F34A; --btn-hover-fg:#0E1A17; --btn-border:#0D5C4B;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0C1512; --surface:#13201C; --ink:#EAF2EE; --muted:#A8BDB4;
+    --primary:#7FD7B9; --on-primary:#0C1512;
+    --border:#263832; --tint:#1A2B25; --focus:#B7F34A; --lane:#2F4A41;
+    --btn-bg:#B7F34A; --btn-fg:#0C1512; --btn-hover-bg:#D2FA85; --btn-hover-fg:#0C1512; --btn-border:#B7F34A;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 18px/1.6 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow-x:hidden}
+h1,h2,h3{font-family:Sora,system-ui,sans-serif;line-height:1.1;margin:0;letter-spacing:-0.02em}
+p{margin:0}
+a{color:var(--primary)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:6px}
+.wrap{width:100%;max-width:1040px;margin:0 auto;padding:0 18px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--surface);color:var(--ink);padding:12px 16px;border:1px solid var(--border);border-radius:8px;z-index:30}
+.skip:focus{left:8px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border-radius:12px;border:2px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-fg);font:600 17px/1 Inter,sans-serif;text-decoration:none;cursor:pointer;transition:background .15s,color .15s}
+.btn:hover{background:var(--btn-hover-bg);color:var(--btn-hover-fg)}
+.btn.small{min-height:44px;padding:0 16px;font-size:15px}
+
+/* placeholders for facts that must be supplied */
+.fill{display:inline;background:var(--tint);border:1px dashed var(--primary);border-radius:6px;padding:1px 6px;font-size:.92em;overflow-wrap:anywhere}
+
+header{border-bottom:1px solid var(--border)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
+.logo{display:inline-flex;align-items:center;gap:12px;min-height:44px;color:var(--ink);text-decoration:none;font:800 26px/1 Sora,sans-serif;letter-spacing:-0.035em}
+.mark{flex:none}
+.mark .ma,.mark .mb{fill:#0A3A2F}
+.mark .md{fill:#B7F34A}
+@media (prefers-color-scheme: dark){.mark .ma{fill:#F2EFE6}.mark .mb{fill:#B7F34A}}
+
+/* hero */
+.hero{padding:48px 0 56px}
+.hero .grid{display:grid;gap:36px}
+h1{font-size:clamp(38px,10.5vw,68px);font-weight:800}
+h1 mark{background:var(--lime);color:var(--on-lime);padding:0 .14em;border-radius:8px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.sub{margin-top:20px;font-size:clamp(19px,4.6vw,23px);color:var(--muted);max-width:26em}
+.cta{margin-top:28px}
+.names{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px}
+.names span{padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:15px;font-weight:600}
+
+/* one simple visual: a code becoming a deposit */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px;max-width:420px;width:100%;box-shadow:0 14px 34px -18px rgba(14,26,23,.35)}
+.card .k{display:flex;justify-content:space-between;gap:8px;font:600 12px/1.3 Sora,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.card .amt{margin:14px 0 4px;font:800 36px/1.1 Sora,sans-serif;letter-spacing:-.02em}
+.card .m{font-size:15px;color:var(--muted)}
+.pill{display:inline-block;padding:2px 12px;border-radius:999px;font:600 13px/1.6 Inter,sans-serif;background:var(--lime);color:var(--on-lime)}
+.lane{height:4px;border-radius:2px;margin:18px 0;background:repeating-linear-gradient(90deg,var(--lane) 0 24px,transparent 24px 42px)}
+.card .row{display:flex;justify-content:space-between;gap:10px;font-size:15px;padding:6px 0}
+.card .row span:first-child{color:var(--muted)}
+.card .smp{margin-top:10px;font-size:12.5px;color:var(--muted)}
+
+/* speed band: the differentiator */
+.speed{display:grid;gap:0;margin-top:30px;align-items:stretch}
+.sb{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px}
+.sb .t{font:600 13px/1.3 Sora,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sb .b{margin:8px 0 6px;font:800 clamp(30px,8vw,46px)/1.05 Sora,sans-serif;letter-spacing:-.02em}
+.sb p{color:var(--muted);font-size:17px}
+.sb.go{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.sb p.b{color:var(--ink)}
+.sb.go .t,.sb.go p{color:inherit;opacity:.92}
+.sb.go p.b{color:inherit;opacity:1}
+.sb.go .b mark{background:var(--lime);color:var(--on-lime);padding:0 .12em;border-radius:8px}
+.lv{width:4px;height:36px;margin:0 auto;background:repeating-linear-gradient(180deg,var(--lane) 0 10px,transparent 10px 18px)}
+.note2{margin-top:16px;font-size:15px;color:var(--muted)}
+/* plans */
+.plans{display:grid;gap:14px;margin-top:30px}
+.plan{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:18px;padding:26px 22px;display:flex;flex-direction:column;gap:10px}
+.plan h3{font-size:22px}
+.plan .when{font:800 clamp(28px,7vw,38px)/1.05 Sora,sans-serif;letter-spacing:-.02em}
+.plan .price{font-size:15.5px;color:var(--muted)}
+.plan ul{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:8px}
+.plan li{position:relative;padding-left:28px;font-size:16.5px}
+.plan li::before{content:"\2713";position:absolute;left:0;top:2px;width:20px;height:20px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:700 12px/1 Inter,sans-serif}
+.plan .btn{margin-top:auto}
+.plan.pro{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.plan.pro .price,.plan.pro .fill{color:inherit}
+.plan.pro .fill{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.6)}
+.plan.pro li::before{background:var(--lime);color:var(--on-lime)}
+.plan.pro .when mark{background:var(--lime);color:var(--on-lime);padding:0 .12em;border-radius:8px}
+.plan.pro .btn{background:var(--lime);color:var(--on-lime);border-color:var(--lime)}
+.plan.pro .btn:hover{background:#fff;border-color:#fff;color:#0E1A17}
+.badge{align-self:flex-start;background:var(--lime);color:var(--on-lime);border-radius:999px;padding:2px 12px;font:700 12px/1.7 Sora,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+section{padding:56px 0}
+section.alt{background:var(--surface);border-block:1px solid var(--border)}
+h2{font-size:clamp(28px,7vw,40px);font-weight:700;max-width:18em}
+
+/* steps */
+.steps{margin-top:30px;display:grid;gap:14px}
+.step{display:grid;grid-template-columns:48px 1fr;gap:16px;align-items:start;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:20px}
+section.alt .step{background:var(--bg)}
+.num{width:48px;height:48px;border-radius:12px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:800 20px/1 Sora,sans-serif}
+.step h3{font-size:21px;margin-bottom:4px}
+.step p{color:var(--muted)}
+
+/* covered list */
+.list{margin:28px 0 0;padding:0;list-style:none;display:grid;gap:10px;max-width:640px}
+.list li{position:relative;padding:14px 16px 14px 52px;background:var(--surface);border:1px solid var(--border);border-radius:14px;font-weight:500}
+.list li::before{content:"\2713";position:absolute;left:14px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:700 14px/1 Inter,sans-serif}
+
+/* faq */
+.faq{margin-top:24px;display:grid;gap:10px;max-width:760px}
+details{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+summary{cursor:pointer;list-style:none;min-height:52px;padding:12px 48px 12px 18px;font:600 17px/1.4 Inter,sans-serif;position:relative;display:flex;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";position:absolute;right:18px;top:50%;transform:translateY(-50%);font:600 22px/1 Inter,sans-serif;color:var(--primary)}
+details[open] summary::after{content:"\2212"}
+details .a{padding:0 18px 16px;color:var(--muted);font-size:16.5px}
+
+/* final cta */
+.final{padding:0 0 64px}
+.final .box{background:var(--primary);color:var(--on-primary);border-radius:22px;padding:36px 20px}
+@media (prefers-color-scheme: dark){.final .box{background:var(--surface);border:1px solid var(--border);color:var(--ink)}}
+.final p.l{margin-top:10px;max-width:30em;opacity:.95}
+form{margin-top:22px;display:grid;gap:10px;max-width:540px}
+label{font-weight:600;font-size:15px}
+.row2{display:grid;gap:10px}
+input[type=email]{width:100%;min-height:52px;padding:0 14px;border-radius:12px;border:2px solid transparent;background:#fff;color:#0E1A17;font:400 17px Inter,sans-serif}
+input[type=email]:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+.final .btn{background:var(--lime);color:var(--on-lime);border-color:var(--lime)}
+.final .btn:hover{background:#fff;border-color:#fff;color:#0E1A17}
+.status{min-height:24px;font-size:15px}
+.final .fine{font-size:13.5px;opacity:.92}
+
+footer{border-top:1px solid var(--border);padding:30px 0 40px;font-size:14.5px;color:var(--muted)}
+footer .wrap{display:grid;gap:28px}
+footer strong{color:var(--ink)}
+footer .cols{display:grid;grid-template-columns:1fr 1fr;gap:28px 20px}
+footer .brand{grid-column:1 / -1;display:grid;gap:8px;max-width:26em;align-content:start}
+footer h3{font:700 13px/1.3 Sora,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin-bottom:6px}
+footer ul{list-style:none;margin:0;padding:0}
+footer li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:15.5px}
+footer li a:hover{color:var(--primary);text-decoration:underline}
+footer li.t{padding:10px 0;font-size:15px}
+footer .legal{border-top:1px solid var(--border);padding-top:20px;display:grid;gap:8px}
+
+@media (min-width:760px){
+  .wrap{padding:0 28px}
+  .hero{padding:88px 0 96px}
+  .hero .grid{grid-template-columns:1.15fr .85fr;align-items:center;gap:56px}
+  .speed{grid-template-columns:1fr 90px 1fr;align-items:center}
+  .lv{width:auto;height:4px;margin:0 12px;background:repeating-linear-gradient(90deg,var(--lane) 0 14px,transparent 14px 26px)}
+  .plans{grid-template-columns:1fr 1fr}
+  .steps{grid-template-columns:repeat(3,1fr)}
+  footer .cols{grid-template-columns:1.4fr 1fr 1fr 1fr}
+  footer .brand{grid-column:auto}
+  .step{grid-template-columns:1fr;gap:14px}
+  .row2{grid-template-columns:1fr auto}
+  .final .box{padding:52px 48px}
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *{transition:none !important;animation:none !important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header>
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Payroad home">
+      <svg class="mark" width="52" height="28" viewBox="0 0 272 147" aria-hidden="true" focusable="false">
+        <polygon class="ma" points="132,0 187,0 100,147 0,147"/>
+        <polygon class="mb" points="217,0 272,0 232,147 134,147"/>
+        <rect class="md" x="154" y="58" width="26" height="7" rx="1.5"/>
+      </svg>
+      Payroad
+    </a>
+    <a class="btn small" href="#join">Join the waitlist</a>
+  </div>
+</header>
+
+<main id="main">
+<div id="top"></div>
+
+<!-- HERO: one message -->
+<section class="hero" style="padding-bottom:56px">
+  <div class="wrap grid">
+    <div>
+      <h1>We help road service shops <mark>accept money codes.</mark></h1>
+      <p class="sub">Payroad processes Comchek, EFS and other money code payments for road service shops. Close your day before midnight and your money is available at 6:00 am. Trusted Shops are paid instantly.</p>
+      <div class="cta"><a class="btn" href="#join">Join the waitlist</a></div>
+      <div class="names" aria-label="Codes we work with"><span>Comchek</span><span>EFS</span><span>Other money codes</span></div>
+    </div>
+
+    <!-- Illustration with sample data only -->
+    <div class="card" role="img" aria-label="Illustration: a money code accepted for a tire replacement, with the payment going to the shop. Sample data.">
+      <div class="k"><span>Money code</span><span class="pill">Accepted</span></div>
+      <div class="amt">$1,240.00</div>
+      <div class="m">Unit 2210 &middot; Steer tire replacement</div>
+      <div class="lane"></div>
+      <div class="row"><span>Paid to</span><span>Your shop</span></div>
+      <div class="row"><span>Available</span><span>Tomorrow, 6:00 am</span></div>
+      <p class="smp">Sample data. Not a real transaction.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SPEED: the differentiator -->
+<section id="speed" style="padding-top:8px">
+  <div class="wrap">
+    <h2>Paid the next morning</h2>
+    <div class="speed">
+      <div class="sb"><p class="t">You</p><p class="b">Close your day before midnight</p><p>Finish your jobs and close the day as usual.</p></div>
+      <div class="lv" aria-hidden="true"></div>
+      <div class="sb go"><p class="t">Your money</p><p class="b"><mark>6:00 am</mark></p><p>Available the next day.</p></div>
+    </div>
+    <p class="note2"><span class="fill">[FILL IN: time zone, which codes qualify and any conditions]</span></p>
+  </div>
+</section>
+
+<!-- PLANS -->
+<section id="plans" class="alt">
+  <div class="wrap">
+    <h2>Two ways to get paid</h2>
+    <div class="plans">
+      <div class="plan">
+        <h3>Payroad</h3>
+        <p class="when">Next morning, 6:00 am</p>
+        <p class="price">Price: <span class="fill">[FILL IN: monthly price and fees]</span></p>
+        <ul>
+          <li>Accept Comchek, EFS and other money codes</li>
+          <li>Close your day before midnight</li>
+          <li>Money available at 6:00 am</li>
+          <li>The status of every payment</li>
+        </ul>
+        <a class="btn" href="#join">Join the waitlist</a>
+      </div>
+      <div class="plan pro">
+        <span class="badge">Trusted Shop</span>
+        <h3>Payroad Pro</h3>
+        <p class="when"><mark>Instantly</mark></p>
+        <p class="price">Price: <span class="fill">[FILL IN: monthly price and instant-payout fee]</span></p>
+        <ul>
+          <li>Everything in Payroad</li>
+          <li>Your money is available right away, with no waiting for the morning</li>
+          <li>Join the Trusted Shop network <span class="fill">[FILL IN: how shops qualify]</span></li>
+        </ul>
+        <a class="btn" href="#join">Join the waitlist</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <h2>Three steps, same every time</h2>
+    <div class="steps">
+      <div class="step"><span class="num">1</span><div><h3>Do the job</h3><p>The driver pays with a money code from their fleet or broker.</p></div></div>
+      <div class="step"><span class="num">2</span><div><h3>Enter the code</h3><p>Put it into Payroad. Payroad takes it from there.</p></div></div>
+      <div class="step"><span class="num">3</span><div><h3>Get paid</h3><p>Close your day before midnight. Your money is available at 6:00 am the next day. Trusted Shops: instantly.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT'S COVERED -->
+<section class="alt" id="covered">
+  <div class="wrap">
+    <h2>Built around money code payments</h2>
+    <p class="lead" style="margin-top:12px;color:var(--muted);max-width:34em">Payroad focuses on getting you paid: Comchek, EFS and other money codes, from the code to your deposit.</p>
+    <ul class="list">
+      <li>Comchek and EFS codes</li>
+      <li>Money at 6:00 am the next day, or instantly for Trusted Shops</li>
+      <li>The status of every payment, from code to deposit</li>
+      <li>Other codes and networks <span class="fill">[FILL IN: which ones]</span></li>
+    </ul>
+    <p style="margin-top:22px;color:var(--muted);max-width:32em">Fees: <span class="fill">[FILL IN: fees and who pays them]</span></p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <h2>Questions shops ask</h2>
+    <div class="faq">
+      <details>
+        <summary>What is a money code?</summary>
+        <div class="a">A code a fleet or broker issues so a shop or tow operator can be paid for a specific job.</div>
+      </details>
+      <details>
+        <summary>When do I get paid?</summary>
+        <div class="a">Close your day before midnight and your money is available at 6:00 am the next day. Trusted Shops get paid instantly. <span class="fill">[FILL IN: time zone, qualifying codes and conditions]</span></div>
+      </details>
+      <details>
+        <summary>What is a Trusted Shop?</summary>
+        <div class="a">A shop on the Payroad Pro plan that gets its money instantly instead of the next morning. <span class="fill">[FILL IN: requirements to qualify, limits and fees]</span></div>
+      </details>
+      <details>
+        <summary>What does it cost?</summary>
+        <div class="a"><span class="fill">[FILL IN: fees and who pays them]</span></div>
+      </details>
+      <details>
+        <summary>Is Payroad connected to Comchek or EFS?</summary>
+        <div class="a">No. Payroad is independent and is not endorsed by either. <span class="fill">[FILL IN: licensing, partners and security, only what is true]</span></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section id="join" class="final" style="padding-top:56px">
+  <div class="wrap">
+    <div class="box">
+      <h2>Close tonight. Paid at 6:00 am.</h2>
+      <p class="l">Leave your email and we will write when your spot is ready.</p>
+      <!--
+        NO BACKEND: this form does not send data anywhere. On submit, the script below opens the
+        visitor's email app with a pre-filled message to the address in WAITLIST_EMAIL.
+        Replace the placeholder address, or point the form at a real endpoint, before launch.
+      -->
+      <form id="waitlist" novalidate>
+        <label for="email">Email address</label>
+        <div class="row2">
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@yourshop.com" required aria-describedby="status">
+          <button class="btn" type="submit">Join the waitlist</button>
+        </div>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <p class="fine">Placeholder form for now: it opens your email app instead of saving your address.</p>
+      </form>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div class="brand">
+        <strong>Payroad</strong>
+        <p>Payroad processes money code payments for road service shops.</p>
+      </div>
+      <nav aria-label="Product">
+        <h3>Product</h3>
+        <ul>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#plans">Plans</a></li>
+          <li><a href="#plans">Trusted Shop</a></li>
+          <li><a href="#join">Join the waitlist</a></li>
+        </ul>
+      </nav>
+      <!-- Resources: every link points at a section on this page. Replace with real pages (blog, help center, guides) as they exist. -->
+      <nav aria-label="Resources">
+        <h3>Resources</h3>
+        <ul>
+          <li><a href="#faq">What is a money code?</a></li>
+          <li><a href="#covered">Comchek and EFS codes</a></li>
+          <li><a href="#speed">When you get paid</a></li>
+          <li><a href="#faq">Questions</a></li>
+        </ul>
+      </nav>
+      <div>
+        <h3>Company</h3>
+        <ul>
+          <li class="t"><span class="fill">[FILL IN: legal company name]</span></li>
+          <li class="t">Contact: <span class="fill">[FILL IN: email or phone]</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <p><span class="fill">[FILL IN: Terms of Use and Privacy Policy links]</span> &middot; <span class="fill">[FILL IN: &copy; year and legal name]</span></p>
+      <p>Payroad is an independent company and is not affiliated with Rig.</p>
+      <p>Comchek and EFS are trademarks of their respective owners.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Placeholder address. Replace before launch.
+  var WAITLIST_EMAIL = "waitlist@payroad.example";
+  var form = document.getElementById("waitlist");
+  var email = document.getElementById("email");
+  var status = document.getElementById("status");
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      status.textContent = "Please enter a valid email address.";
+      email.focus();
+      return;
+    }
+    status.textContent = "Opening your email app to send this.";
+    window.location.href = "mailto:" + WAITLIST_EMAIL +
+      "?subject=" + encodeURIComponent("Payroad waitlist") +
+      "&body=" + encodeURIComponent("Please add me to the Payroad waitlist: " + v);
+  });
+</script>
+</body>
+</html>

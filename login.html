@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in - Payroad</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23161616'/%3E%3Cg transform='translate(11 20)'%3E%3Cpolygon points='21.1,0 29.9,0 16,23.5 0,23.5' fill='%23F6F6F4'/%3E%3Cpolygon points='34.7,0 43.5,0 37.1,23.5 21.4,23.5' fill='%23F6F6F4'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Prototype: no real authentication. Submitting only validates the fields and opens dashboard.html. */
+:root{--bg:#F6F6F4;--card:#FFFFFF;--ink:#161616;--muted:#5A5A57;--line:#D9D9D4;--accent:#2A55D6;--on-accent:#FFFFFF;--err:#A4271C;--err-bg:#FBE9E7}
+@media (prefers-color-scheme: dark){:root{--bg:#121212;--card:#1C1C1C;--ink:#EDEDEA;--muted:#A3A3A0;--line:#333;--accent:#8EA8FF;--on-accent:#101830;--err:#FF9C92;--err-bg:#3A1E1B}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:400 16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;place-items:center;padding:24px 16px}
+.box{width:100%;max-width:400px}
+.logo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:26px;font-weight:800;font-size:28px;letter-spacing:-.035em}
+.logo svg{fill:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 22px}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{margin:0 0 20px;color:var(--muted);font-size:15px}
+label{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+.field{margin-bottom:16px}
+input{width:100%;min-height:48px;padding:10px 12px;border:2px solid var(--line);border-radius:10px;background:var(--bg);font:inherit;color:inherit}
+input:focus{border-color:var(--accent);outline:none}
+input[aria-invalid="true"]{border-color:var(--err)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+input:focus-visible{outline:none}
+.pw{position:relative}
+.pw input{padding-right:78px}
+.show{position:absolute;right:4px;top:2px;min-height:44px;min-width:64px;border:0;background:transparent;color:var(--accent);font-weight:600;cursor:pointer;border-radius:8px}
+.err{margin:6px 0 0;color:var(--err);font-size:13.5px}
+.row{display:flex;justify-content:flex-end;margin:-6px 0 16px}
+a{color:var(--accent);font-weight:600;text-decoration:none}
+a:hover{text-decoration:underline}
+.link{display:inline-flex;align-items:center;min-height:44px}
+.btn{width:100%;min-height:50px;border:2px solid var(--accent);border-radius:12px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:default}
+.alert{background:var(--err-bg);color:var(--err);border:1px solid var(--err);border-radius:10px;padding:10px 12px;font-size:14.5px;margin-bottom:16px}
+.info{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--muted);margin-top:16px}
+.foot{text-align:center;margin-top:18px;color:var(--muted);font-size:15px}
+.sr{position:absolute;left:-999px}
+</style>
+</head>
+<body>
+<main class="box">
+  <div class="logo" aria-label="Payroad">
+    <svg width="46" height="25" viewBox="0 0 272 147" aria-hidden="true" focusable="false"><polygon points="132,0 187,0 100,147 0,147"/><polygon points="217,0 272,0 232,147 134,147"/></svg>
+    Payroad
+  </div>
+
+  <form class="card" id="f" novalidate>
+    <h1>Sign in</h1>
+    <p class="sub">Access your shop's orders, payments and deposits.</p>
+    <div id="alert"></div>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="eemail">
+      <p class="err" id="eemail"></p>
+    </div>
+
+    <div class="field">
+      <label for="pw">Password</label>
+      <div class="pw">
+        <input id="pw" type="password" autocomplete="current-password" aria-describedby="epw">
+        <button class="show" type="button" id="show" aria-pressed="false" aria-controls="pw">Show</button>
+      </div>
+      <p class="err" id="epw"></p>
+    </div>
+
+    <div class="row"><a class="link" href="#forgot" id="forgot">Forgot your password?</a></div>
+    <button class="btn" type="submit" id="go">Sign in</button>
+    <div id="info"></div>
+  </form>
+
+  <p class="foot">New to Payroad? <a class="link" href="#waitlist">Join the waitlist</a></p>
+  <p class="sr" id="live" role="status" aria-live="polite"></p>
+</main>
+
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  $("show").addEventListener("click",function(){
+    var on=$("pw").type==="password"; $("pw").type=on?"text":"password";
+    this.textContent=on?"Hide":"Show"; this.setAttribute("aria-pressed",on);
+  });
+  function setErr(id,input,msg){$(id).textContent=msg; $(input).setAttribute("aria-invalid",msg?"true":"false")}
+  $("f").addEventListener("submit",function(e){
+    e.preventDefault(); $("alert").innerHTML=""; $("info").innerHTML="";
+    var em=$("email").value.trim(), pw=$("pw").value, bad=null;
+    setErr("eemail","email", !em?"Enter your email.":(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)?"Enter a valid email address.":""));
+    setErr("epw","pw", !pw?"Enter your password.":"");
+    if(!em||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){bad=$("email")} else if(!pw){bad=$("pw")}
+    if(bad){bad.focus(); $("live").textContent="Please fix the errors in the form."; return}
+    // Prototype: nothing is checked or sent. A real build would call the sign-in endpoint here.
+    location.href="dashboard.html#today";
+  });
+  $("forgot").addEventListener("click",function(e){e.preventDefault(); $("info").innerHTML='<div class="info">Prototype: this would email a link to reset your password.</div>'});
+})();
+</script>
+</body>
+</html>
